@@ -96,6 +96,29 @@ func TestHTTPServer(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.JSONEq(t, `{"message": "Hello from http stub"}`, string(body))
 	})
+
+	t.Run("Raw HTTP found", func(t *testing.T) {
+		t.Parallel()
+
+		url, err := url.JoinPath(serverURL, "echo")
+		require.NoError(t, err)
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, resp.Body.Close())
+		}()
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "Some text", string(body))
+		assert.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
+		assert.Equal(t, "9", resp.Header.Get("Content-Length"))
+		assert.Equal(t, "Wed, 19 Jul 1972 19:00:00 GMT", resp.Header.Get("Date"))
+	})
 }
 
 func TestGrpcServerSuccessResponses(t *testing.T) {
