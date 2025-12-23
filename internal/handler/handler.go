@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kogxi/stub-server/internal/grpcstub"
-	"github.com/kogxi/stub-server/internal/httpstub"
+	"github.com/randomenterprisesolutions/stub-server/internal/grpcstub"
+	"github.com/randomenterprisesolutions/stub-server/internal/httpstub"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"

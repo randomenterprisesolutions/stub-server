@@ -30,7 +30,7 @@ kos:
   # Repository to push to.
   #
   # Default: $KO_DOCKER_REPO
-  repository: ghcr.io/kogxi/stub-server
+  repository: ghcr.io/randomenterprisesolutions/stub-server
 
   # Platforms to build and publish.
   #
