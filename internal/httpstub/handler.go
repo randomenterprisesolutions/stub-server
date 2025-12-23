@@ -2,7 +2,6 @@
 package httpstub
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -59,21 +58,9 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for k, val := range stub.Header {
-		for _, v := range val {
-			w.Header().Set(k, v)
-		}
-	}
-
-	w.WriteHeader(stub.Status)
-
-	if stub.Body == nil {
-		return
-	}
-
-	if err = json.NewEncoder(w).Encode(stub.Body); err != nil {
-		slog.ErrorContext(r.Context(), "Failed to encode response", slog.String("error", err.Error()))
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	if err := stub.Write(r, w); err != nil {
+		slog.ErrorContext(r.Context(), "Failed to write response", slog.String("error", err.Error()))
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
 		return
 	}
 }

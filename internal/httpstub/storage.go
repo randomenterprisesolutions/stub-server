@@ -5,10 +5,17 @@ import (
 	"sync"
 )
 
+// Stub represents a predefined HTTP stub.
+type Stub interface {
+	URL() string
+	Method() string
+	Write(*http.Request, http.ResponseWriter) error
+}
+
 // Storage is an in-memory storage for HTTP stubs.
 type Storage struct {
 	// represents [URL][Method]
-	stubs map[string]map[string]Response
+	stubs map[string]map[string]Stub
 
 	m sync.Mutex
 }
@@ -16,7 +23,7 @@ type Storage struct {
 // NewStorage creates a new instance of Storage.
 func NewStorage() *Storage {
 	return &Storage{
-		stubs: map[string]map[string]Response{},
+		stubs: map[string]map[string]Stub{},
 		m:     sync.Mutex{},
 	}
 }
@@ -26,25 +33,25 @@ func (p *Storage) Add(s Stub) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	if p.stubs[s.Path] == nil {
-		p.stubs[s.Path] = map[string]Response{}
+	if p.stubs[s.URL()] == nil {
+		p.stubs[s.URL()] = map[string]Stub{}
 	}
-	p.stubs[s.Path][s.Method] = s.Response
+	p.stubs[s.URL()][s.Method()] = s
 }
 
 // Get retrieves the Output for a given URL and method.
-func (p *Storage) Get(req *http.Request) (Response, error) {
+func (p *Storage) Get(req *http.Request) (Stub, error) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
 	matchingURLs, ok := p.stubs[req.URL.Path]
 	if !ok {
-		return Response{}, ErrStubNotFound
+		return nil, ErrStubNotFound
 	}
 
 	stub, ok := matchingURLs[req.Method]
 	if !ok {
-		return Response{}, ErrMethodNotAllowed
+		return nil, ErrMethodNotAllowed
 	}
 
 	return stub, nil

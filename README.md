@@ -6,9 +6,6 @@ The HTTP and gRPC server run on the same port.
 
 # Usage
 
-## Installation
-`go install github.com/kogxi/stub-server/cmd`
-
 ## Parameters
 | Name | Usage | Required | Default |
 |-|-|-|-|
@@ -20,10 +17,18 @@ The HTTP and gRPC server run on the same port.
 | http | Directory containing the `.json` HTTP stub files| `true`| - |
 
 ## HTTP stub server
+To start the HTTP stub server one needs to specify the path to the HTTP stub dir.
+`./stub-server --http ./examples/httpstubs`.
 
-The HTTP(s) stub requires only the `path` and `response.status` fields, otherwise the server returns a 404 (Not found) HTTP status code.
+The HTTP stub server supports two stub types:
+1. JSON stubs
+2. Raw HTTP stubs
 
-### Minimal example
+### JSON
+
+The HTTP(s) JSON stub requires only the `path` and `response.status` fields, otherwise the server returns a 404 (Not found) HTTP status code.
+
+#### Minimal example
 ```JSON
 {
     "path": "/helloworld",
@@ -33,7 +38,7 @@ The HTTP(s) stub requires only the `path` and `response.status` fields, otherwis
 }
 ```
 
-### Fully specified example
+#### Fully specified example
 ```JSON
 {
     "path": "/helloworld",
@@ -48,8 +53,18 @@ The HTTP(s) stub requires only the `path` and `response.status` fields, otherwis
 }
 ```
 
-To start the HTTP stub server one needs to specify the path to the HTTP stub dir.
-`./stub-server --http ./examples/httpstubs`
+### RAW HTTP
+To allow more flexibility the stub-server also support raw HTTP responses provided via file.
+This is useful if e.g., `multipart/related`, `multipart/formdata` or some binary response shall be returned. The path relative to the stubdir provides the URL path for which the stub is returned by the server. The last segment of the path before the file is the HTTP method.
+
+#### Example
+Given the following directory structure, the server returns the response contained in the `test.http` file, if a `GET` request is sent to `/echo`: 
+```
+stubs/
+  echo/
+    GET/
+      test.http
+```
 
 ## gRPC stub server
 
