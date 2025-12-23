@@ -36,7 +36,7 @@ func (s HTTPStub) Write(req *http.Request, w http.ResponseWriter) error {
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	for k, val := range resp.Header {
 		for _, v := range val {
