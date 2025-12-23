@@ -11,7 +11,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/kogxi/stub-server/internal/handler"
+	"github.com/randomenterprisesolutions/stub-server/internal/handler"
 	"golang.org/x/sync/errgroup"
 )
 

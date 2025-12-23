@@ -1,4 +1,4 @@
-module github.com/kogxi/stub-server
+module github.com/randomenterprisesolutions/stub-server
 
 go 1.25.0
 

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kogxi/stub-server/internal/handler"
+	"github.com/randomenterprisesolutions/stub-server/internal/handler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
