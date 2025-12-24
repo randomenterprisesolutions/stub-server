@@ -20,14 +20,14 @@ type HTTPStub struct {
 
 var _ Stub = &HTTPStub{}
 
-// URL returns the URL path of the HTTP stub.
-func (s HTTPStub) URL() string {
-	return s.Path
+// Matches checks if the HTTPStub matches the given HTTP request.
+func (s HTTPStub) Matches(req *http.Request) bool {
+	return req.URL.Path == s.Path && req.Method == s.HTTPMethod
 }
 
-// Method returns the HTTP method of the stub.
-func (s HTTPStub) Method() string {
-	return s.HTTPMethod
+// Type returns the MatchType
+func (s HTTPStub) Type() MatchType {
+	return MatchExact
 }
 
 // Write writes the HTTPStub response to the provided http.ResponseWriter.

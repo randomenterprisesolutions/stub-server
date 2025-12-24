@@ -5,25 +5,27 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 )
 
 // JSONStub represents a predefined HTTP stub.
 type JSONStub struct {
-	Path       string       `json:"path"`
+	ExactPath  string       `json:"path"`
+	RegexPath  string       `json:"regex"`
 	HTTPMethod string       `json:"method"`
 	Response   JSONResponse `json:"response"`
 }
 
 var _ Stub = &JSONStub{}
 
-// URL returns the URL path of the JSON stub.
-func (s JSONStub) URL() string {
-	return s.Path
-}
+// Matches checks if the JSONStub matches the given HTTP request.
+func (s JSONStub) Matches(req *http.Request) bool {
+	if s.ExactPath != "" {
+		return req.URL.Path == s.ExactPath && req.Method == s.HTTPMethod
+	}
 
-// Method returns the HTTP method of the stub.
-func (s JSONStub) Method() string {
-	return s.HTTPMethod
+	match, _ := regexp.MatchString(s.RegexPath, req.URL.Path)
+	return match
 }
 
 // Write writes the JSONStub response to the provided http.ResponseWriter.
@@ -31,10 +33,25 @@ func (s JSONStub) Write(req *http.Request, w http.ResponseWriter) error {
 	return s.Response.Write(req, w)
 }
 
+// Type returns the MatchType
+func (s JSONStub) Type() MatchType {
+	if s.ExactPath != "" {
+		return MatchExact
+	}
+	return MatchRegex
+}
+
 // Validate validates the JSONStub fields.
 func (s *JSONStub) Validate() error {
-	if s.Path == "" {
-		return errors.New(`"path" field is required`)
+	if (s.ExactPath == "" && s.RegexPath == "") ||
+		(s.ExactPath != "" && s.RegexPath != "") {
+		return errors.New(`either "path" or "regex" field is required`)
+	}
+
+	if s.RegexPath != "" {
+		if _, err := regexp.Compile(s.RegexPath); err != nil {
+			return fmt.Errorf("invalid regex: %w", err)
+		}
 	}
 
 	if err := s.Response.Validate(); err != nil {
