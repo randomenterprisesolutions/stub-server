@@ -26,12 +26,21 @@ The HTTP stub server supports two stub types:
 
 ### JSON
 
-The HTTP(s) JSON stub requires only the `path` and `response.status` fields, otherwise the server returns a 404 (Not found) HTTP status code.
+The HTTP(s) JSON stub requires only the `path` or `path` and `response.status` fields, otherwise the server returns a 404 (Not found) HTTP status code.
 
-#### Minimal example
+#### Minimal examples
 ```JSON
 {
     "path": "/helloworld",
+    "response": {
+        "status": "200"
+    }
+}
+```
+
+```JSON
+{
+    "regex": "/users/*",
     "response": {
         "status": "200"
     }

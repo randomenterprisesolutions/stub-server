@@ -1,21 +1,37 @@
 package httpstub
 
 import (
+	"log/slog"
 	"net/http"
+	"sort"
 	"sync"
+)
+
+// MatchType defines the match types
+type MatchType int
+
+const (
+	// MatchExact indicates that matching against a stub should use exact string equality.
+	// With this match type, the incoming request value must be identical to the stored stub value
+	// — no pattern matching or regular expressions are applied. Use MatchRegex for pattern-based matching.
+	MatchExact MatchType = iota
+	// MatchRegex indicates that matching against a stub should use regular expression pattern matching.
+	// With this match type, the stored stub value is treated as a regular expression and the incoming
+	// request value must match that pattern. Patterns are interpreted using Go's regexp package;
+	// anchor the pattern (e.g., ^...$) if you require a full-string match. Use MatchExact for literal equality.
+	MatchRegex
 )
 
 // Stub represents a predefined HTTP stub.
 type Stub interface {
-	URL() string
-	Method() string
+	Matches(*http.Request) bool
 	Write(*http.Request, http.ResponseWriter) error
+	Type() MatchType
 }
 
 // Storage is an in-memory storage for HTTP stubs.
 type Storage struct {
-	// represents [URL][Method]
-	stubs map[string]map[string]Stub
+	stubs []Stub
 
 	m sync.Mutex
 }
@@ -23,7 +39,7 @@ type Storage struct {
 // NewStorage creates a new instance of Storage.
 func NewStorage() *Storage {
 	return &Storage{
-		stubs: map[string]map[string]Stub{},
+		stubs: []Stub{},
 		m:     sync.Mutex{},
 	}
 }
@@ -33,10 +49,12 @@ func (p *Storage) Add(s Stub) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	if p.stubs[s.URL()] == nil {
-		p.stubs[s.URL()] = map[string]Stub{}
-	}
-	p.stubs[s.URL()][s.Method()] = s
+	p.stubs = append(p.stubs, s)
+
+	// Sort by Type (Exact < Prefix < Regex < Prefix)
+	sort.Slice(p.stubs, func(i, j int) bool {
+		return p.stubs[i].Type() < p.stubs[j].Type()
+	})
 }
 
 // Get retrieves the Output for a given URL and method.
@@ -44,15 +62,35 @@ func (p *Storage) Get(req *http.Request) (Stub, error) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	matchingURLs, ok := p.stubs[req.URL.Path]
-	if !ok {
+	matches := make([]Stub, 0)
+	for _, stub := range p.stubs {
+		if stub.Matches(req) {
+			matches = append(matches, stub)
+		}
+	}
+
+	if len(matches) == 0 {
 		return nil, ErrStubNotFound
 	}
 
-	stub, ok := matchingURLs[req.Method]
-	if !ok {
-		return nil, ErrMethodNotAllowed
+	if len(matches) > 1 {
+		slog.Warn("Multiple stub rules matched",
+			slog.String("path", req.URL.Path),
+			slog.Int("matches", len(matches)),
+			slog.Any("rules", extractStubInfo(matches)),
+		)
 	}
 
-	return stub, nil
+	// First match always wins
+	return matches[0], nil
+}
+
+func extractStubInfo(stubs []Stub) []map[string]any {
+	out := make([]map[string]any, 0, len(stubs))
+	for _, s := range stubs {
+		out = append(out, map[string]any{
+			"type": s.Type(),
+		})
+	}
+	return out
 }

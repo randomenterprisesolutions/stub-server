@@ -63,7 +63,7 @@ func TestHTTPServer(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 
-	t.Run("Method not allowed", func(t *testing.T) {
+	t.Run("Method not found", func(t *testing.T) {
 		t.Parallel()
 
 		url, err := url.JoinPath(serverURL, "helloworld")
@@ -74,7 +74,7 @@ func TestHTTPServer(t *testing.T) {
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
-		assert.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 
 	t.Run("Found", func(t *testing.T) {
@@ -113,11 +113,31 @@ func TestHTTPServer(t *testing.T) {
 
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "Some text", string(body))
 		assert.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
 		assert.Equal(t, "9", resp.Header.Get("Content-Length"))
 		assert.Equal(t, "Wed, 19 Jul 1972 19:00:00 GMT", resp.Header.Get("Date"))
+	})
+
+	t.Run("regex found", func(t *testing.T) {
+		t.Parallel()
+
+		url, err := url.JoinPath(serverURL, "/users/1234")
+		require.NoError(t, err)
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			require.NoError(t, resp.Body.Close())
+		}()
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.JSONEq(t, `{"name": "Jane Doe", "birthdate": "20-06-1990"}`, string(body))
 	})
 }
 

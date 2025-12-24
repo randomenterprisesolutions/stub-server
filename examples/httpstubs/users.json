@@ -1,0 +1,11 @@
+{
+    "regex": "/users/*",
+    "method": "GET",
+    "response": {
+        "header": {
+          "Content-Type":  ["application/json"]
+        },
+        "body": {"name": "Jane Doe", "birthdate": "20-06-1990"},
+        "status": 200
+    }
+}
