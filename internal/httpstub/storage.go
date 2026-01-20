@@ -57,7 +57,7 @@ func (p *Storage) Add(s Stub) {
 	})
 }
 
-// Get retrieves the Output for a given URL and method.
+// Find retrieves the Output for a given URL and method.
 func (p *Storage) Find(inv HTTPInvocation) (Stub, bool) {
 	p.m.Lock()
 	defer p.m.Unlock()
