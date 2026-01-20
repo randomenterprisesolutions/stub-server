@@ -75,6 +75,18 @@ stubs/
       test.http
 ```
 
+### Request matching
+Matching is based on:
+- method
+- path (exact or regex)
+
+Query parameters and headers are not currently used for matching.
+
+### Non-goals
+- request body matching
+- contract validation
+- expectation verification
+
 ## gRPC stub server
 
 The gRPC stub requires the `service`, `method` and `outputs` fields.

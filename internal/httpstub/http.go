@@ -21,8 +21,8 @@ type HTTPStub struct {
 var _ Stub = &HTTPStub{}
 
 // Matches checks if the HTTPStub matches the given HTTP request.
-func (s HTTPStub) Matches(req *http.Request) bool {
-	return req.URL.Path == s.Path && req.Method == s.HTTPMethod
+func (s *HTTPStub) Matches(inv HTTPInvocation) bool {
+	return inv.Path == s.Path && inv.Method == s.HTTPMethod
 }
 
 // Type returns the MatchType
@@ -30,11 +30,15 @@ func (s HTTPStub) Type() MatchType {
 	return MatchExact
 }
 
-// Write writes the HTTPStub response to the provided http.ResponseWriter.
-func (s HTTPStub) Write(req *http.Request, w http.ResponseWriter) error {
+// Invoke writes the HTTPStub response to the provided http.ResponseWriter.
+func (s *HTTPStub) Invoke(w http.ResponseWriter) {
+	req := &http.Request{
+		Method: s.HTTPMethod,
+	}
 	resp, err := http.ReadResponse(bufio.NewReader(strings.NewReader(s.Response)), req)
 	if err != nil {
-		return fmt.Errorf("read response: %w", err)
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
+		return
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
@@ -47,10 +51,9 @@ func (s HTTPStub) Write(req *http.Request, w http.ResponseWriter) error {
 	w.WriteHeader(resp.StatusCode)
 
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		return fmt.Errorf("copy body: %w", err)
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
+		return
 	}
-
-	return nil
 }
 
 // Validate validates the HTTPStub fields.
@@ -107,5 +110,5 @@ func loadHTTPFile(root string, path string) (s Stub, err error) {
 		return nil, fmt.Errorf("stub validation %v: %w", path, err)
 	}
 
-	return stub, nil
+	return &stub, nil
 }

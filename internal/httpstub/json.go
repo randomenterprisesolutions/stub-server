@@ -14,23 +14,30 @@ type JSONStub struct {
 	RegexPath  string       `json:"regex"`
 	HTTPMethod string       `json:"method"`
 	Response   JSONResponse `json:"response"`
+	regex      *regexp.Regexp
 }
 
 var _ Stub = &JSONStub{}
 
 // Matches checks if the JSONStub matches the given HTTP request.
-func (s JSONStub) Matches(req *http.Request) bool {
+func (s JSONStub) Matches(inv HTTPInvocation) bool {
 	if s.ExactPath != "" {
-		return req.URL.Path == s.ExactPath && req.Method == s.HTTPMethod
+		return inv.Path == s.ExactPath && inv.Method == s.HTTPMethod
 	}
 
-	match, _ := regexp.MatchString(s.RegexPath, req.URL.Path)
+	if s.regex != nil {
+		return s.regex.MatchString(inv.Path)
+	}
+
+	match, _ := regexp.MatchString(s.RegexPath, inv.Path)
 	return match
 }
 
-// Write writes the JSONStub response to the provided http.ResponseWriter.
-func (s JSONStub) Write(req *http.Request, w http.ResponseWriter) error {
-	return s.Response.Write(req, w)
+// Invoke writes the JSONStub response to the provided http.ResponseWriter.
+func (s JSONStub) Invoke(w http.ResponseWriter) {
+	if err := s.Response.Write(w); err != nil {
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
+	}
 }
 
 // Type returns the MatchType
@@ -49,9 +56,11 @@ func (s *JSONStub) Validate() error {
 	}
 
 	if s.RegexPath != "" {
-		if _, err := regexp.Compile(s.RegexPath); err != nil {
+		compiled, err := regexp.Compile(s.RegexPath)
+		if err != nil {
 			return fmt.Errorf("invalid regex: %w", err)
 		}
+		s.regex = compiled
 	}
 
 	if err := s.Response.Validate(); err != nil {
@@ -69,7 +78,7 @@ type JSONResponse struct {
 }
 
 // Write writes the JSONResponse to the provided http.ResponseWriter.
-func (r JSONResponse) Write(_ *http.Request, w http.ResponseWriter) error {
+func (r JSONResponse) Write(w http.ResponseWriter) error {
 	for k, val := range r.Header {
 		for _, v := range val {
 			w.Header().Set(k, v)

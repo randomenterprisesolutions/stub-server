@@ -2,7 +2,6 @@
 package httpstub
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -30,37 +29,30 @@ func NewHandler(stubDir string) (*Handler, error) {
 
 // ServeHTTP serves HTTP requests based on the loaded stubs.
 func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	stub, err := s.stubs.Get(r)
-	if err != nil {
-		slog.ErrorContext(r.Context(),
-			"Could not get stub",
-			slog.String("path", r.URL.Path),
-			slog.String("method", r.Method),
-			slog.String("error", err.Error()),
-		)
-		if errors.Is(err, ErrStubNotFound) {
-			http.Error(w, "unknown stub", http.StatusNotFound)
-			return
+	inv := HTTPInvocation{
+		Method:  r.Method,
+		Path:    r.URL.Path,
+		Query:   r.URL.Query(),
+		Headers: r.Header,
+	}
+
+	stub, ok := s.stubs.Find(inv)
+	if ok {
+		if r.Body != nil {
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				slog.ErrorContext(r.Context(), "Error reading body", slog.String("error", err.Error()))
+				http.Error(w, "Error reading request body", http.StatusInternalServerError)
+				return
+			}
 		}
-		if errors.Is(err, ErrMethodNotAllowed) {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		http.Error(w, "unknown stub", http.StatusInternalServerError)
+		stub.Invoke(w)
 		return
 	}
 
-	if r.Body != nil {
-		if _, err := io.Copy(io.Discard, r.Body); err != nil {
-			slog.ErrorContext(r.Context(), "Error reading body", slog.String("error", err.Error()))
-			http.Error(w, "Error reading request body", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	if err := stub.Write(r, w); err != nil {
-		slog.ErrorContext(r.Context(), "Failed to write response", slog.String("error", err.Error()))
-		http.Error(w, "Failed to write response", http.StatusInternalServerError)
-		return
-	}
+	slog.InfoContext(r.Context(),
+		"Stub not found",
+		slog.String("path", r.URL.Path),
+		slog.String("method", r.Method),
+	)
+	http.NotFound(w, r)
 }
