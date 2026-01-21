@@ -90,6 +90,7 @@ func (s *GRPCService) Handler(_ any, ctx context.Context, deccode func(any) erro
 
 	if err := deccode(input); err != nil {
 		slog.ErrorContext(ctx, "Failed to decode input message", slog.String("error", err.Error()))
+		return nil, status.Error(codes.InvalidArgument, "Failed to decode input message")
 	}
 
 	jsonInput, err := protojson.Marshal(input)
