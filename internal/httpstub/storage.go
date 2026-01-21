@@ -24,8 +24,8 @@ const (
 
 // Stub represents a predefined HTTP stub.
 type Stub interface {
-	Matches(*http.Request) bool
-	Write(*http.Request, http.ResponseWriter) error
+	Matches(HTTPInvocation) bool
+	Invoke(http.ResponseWriter)
 	Type() MatchType
 }
 
@@ -57,32 +57,36 @@ func (p *Storage) Add(s Stub) {
 	})
 }
 
-// Get retrieves the Output for a given URL and method.
-func (p *Storage) Get(req *http.Request) (Stub, error) {
+// Find retrieves the Output for a given URL and method.
+func (p *Storage) Find(inv HTTPInvocation) (Stub, bool) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	matches := make([]Stub, 0)
+	var match Stub
+	var matches []Stub
 	for _, stub := range p.stubs {
-		if stub.Matches(req) {
+		if stub.Matches(inv) {
+			if match == nil {
+				match = stub
+			}
 			matches = append(matches, stub)
 		}
 	}
 
-	if len(matches) == 0 {
-		return nil, ErrStubNotFound
-	}
-
 	if len(matches) > 1 {
 		slog.Warn("Multiple stub rules matched",
-			slog.String("path", req.URL.Path),
+			slog.String("path", inv.Path),
+			slog.String("method", inv.Method),
 			slog.Int("matches", len(matches)),
 			slog.Any("rules", extractStubInfo(matches)),
 		)
 	}
 
-	// First match always wins
-	return matches[0], nil
+	if match == nil {
+		return nil, false
+	}
+
+	return match, true
 }
 
 func extractStubInfo(stubs []Stub) []map[string]any {
