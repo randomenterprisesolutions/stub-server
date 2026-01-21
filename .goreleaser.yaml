@@ -13,10 +13,6 @@ sboms:
   - id: binary
     artifacts: binary
 
-release:
-  extra_files:
-    - glob: ./dist/*.sbom*
-
 kos:
 -
   # Main path to build.
