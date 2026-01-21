@@ -4,6 +4,11 @@ No need to invoke the proto compiler - the proto files are loaded dynamically.
 It supports streaming and unary RPC calls for gRPC.
 The HTTP and gRPC server run on the same port.
 
+# What it is (and isn't)
+- Lightweight stub server for HTTP and gRPC based on files on disk.
+- Loads `.proto` files directly; no precompiled descriptor sets required.
+- Designed for local development, demos and simple testing, not contract testing.
+
 # Usage
 
 ## Parameters
@@ -23,6 +28,12 @@ To start the HTTP stub server one needs to specify the path to the HTTP stub dir
 The HTTP stub server supports two stub types:
 1. JSON stubs
 2. Raw HTTP stubs
+
+### Stub formats
+| Format | When to use | Notes |
+|-|-|-|
+| JSON | Most HTTP responses with structured bodies | Supports exact or regex path matching, plus headers/status/body. |
+| Raw HTTP | Multipart/binary or highly custom responses | Full control over headers/body as a raw HTTP response. |
 
 ### JSON
 
@@ -125,3 +136,27 @@ To start HTTP and gRPC server you can combine the two commands:
 
 ### Reflection
 gRPC reflection (v1) is enabled by default so tools like `grpcurl` can list and describe services.
+
+# Quick start
+HTTP only:
+`./stub-server --http ./examples/httpstubs`
+
+gRPC only:
+`./stub-server --proto ./examples/protos --stubs ./examples/protostubs`
+
+Both:
+`./stub-server --proto ./examples/protos --stubs ./examples/protostubs --http ./examples/httpstubs`
+
+# Comparison
+The focus here is file-based stubbing with minimal moving parts.
+
+| Tool | HTTP | gRPC | File-based stubs | Raw HTTP response files | Request body matching | Admin API / UI | Verification |
+|-|-|-|-|-|-|-|-|
+| Stub Server (this) | Yes | Yes | Yes | Yes | No | No | No |
+| WireMock | Yes | No | Yes | Limited | Yes | Yes | Yes |
+| MockServer | Yes | Partial (via gRPC proxying) | Yes | Limited | Yes | Yes | Yes |
+| Imposter (imposter.js) | Yes | Yes | Yes | Limited | Yes | Yes | Partial |
+
+Limitations by design:
+- No request body matching or verification.
+- No admin API/UI; stubs are loaded from disk on startup.
