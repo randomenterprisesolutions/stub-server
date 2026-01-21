@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
@@ -47,7 +46,7 @@ func (s *GRPCService) registerTypes(protoDir string) error {
 }
 
 func (s *GRPCService) registerServices() {
-	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+	s.files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
 		for svcNum := 0; svcNum < fd.Services().Len(); svcNum++ {
 			svc := fd.Services().Get(svcNum)
 			serviceName := string(svc.FullName())
@@ -76,7 +75,7 @@ func (s *GRPCService) registerProto(protoDir string, protoFileName string) (err 
 	protoFileName = strings.ReplaceAll(protoFileName, "\\", "/")
 
 	// Skip the file if it is already registered
-	if _, err := protoregistry.GlobalFiles.FindFileByPath(protoFileName); err == nil {
+	if _, err := s.files.FindFileByPath(protoFileName); err == nil {
 		return nil
 	}
 
@@ -110,26 +109,24 @@ func (s *GRPCService) registerProto(protoDir string, protoFileName string) (err 
 		}
 	}
 
-	fd, err := protodesc.NewFile(res.FileDescriptorProto(), protoregistry.GlobalFiles)
+	fd, err := protodesc.NewFile(res.FileDescriptorProto(), s.files)
 	if err != nil {
 		return fmt.Errorf("convert to FileDescriptor: %w", err)
 	}
 
-	if _, err = protoregistry.GlobalTypes.FindMessageByName(fd.FullName()); errors.Is(err, protoregistry.NotFound) {
-		if err := protoregistry.GlobalFiles.RegisterFile(fd); err != nil {
-			return fmt.Errorf("register file: %w", err)
-		}
+	if err := s.files.RegisterFile(fd); err != nil {
+		return fmt.Errorf("register file: %w", err)
 	}
 
 	for i := 0; i < fd.Messages().Len(); i++ {
 		msg := fd.Messages().Get(i)
-		if err := protoregistry.GlobalTypes.RegisterMessage(dynamicpb.NewMessageType(msg)); err != nil {
+		if err := s.types.RegisterMessage(dynamicpb.NewMessageType(msg)); err != nil {
 			return fmt.Errorf("register message %q: %w", msg.FullName(), err)
 		}
 	}
 	for i := 0; i < fd.Extensions().Len(); i++ {
 		ext := fd.Extensions().Get(i)
-		if err := protoregistry.GlobalTypes.RegisterExtension(dynamicpb.NewExtensionType(ext)); err != nil {
+		if err := s.types.RegisterExtension(dynamicpb.NewExtensionType(ext)); err != nil {
 			return fmt.Errorf("register extension %q: %w", ext.FullName(), err)
 		}
 	}
