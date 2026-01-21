@@ -52,7 +52,7 @@ func (p *Storage) Add(s Stub) {
 	p.stubs = append(p.stubs, s)
 
 	// Sort by Type (Exact < Prefix < Regex < Prefix)
-	sort.Slice(p.stubs, func(i, j int) bool {
+	sort.SliceStable(p.stubs, func(i, j int) bool {
 		return p.stubs[i].Type() < p.stubs[j].Type()
 	})
 }
