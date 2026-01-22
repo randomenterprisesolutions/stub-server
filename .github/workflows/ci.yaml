@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  GO_VERSION: 1.25.0
+  GO_VERSION: 1.25.6
 
 jobs:
   tests:
@@ -69,7 +69,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: v1.26.2
+          version: v2
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,5 +79,5 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: v1.26.2
+          version: v2
           args: release --snapshot --clean --skip=publish
