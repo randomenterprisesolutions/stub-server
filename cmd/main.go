@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 
 	_ "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"github.com/randomenterprisesolutions/stub-server/internal/handler"
@@ -28,6 +29,7 @@ var (
 	httpStubDir  = flag.String("http", envOrDefault("STUB_SERVER_HTTP", ""), "Path to HTTP stubs")
 	tlsCert      = flag.String("cert", envOrDefault("STUB_SERVER_CERT", ""), "Path to TLS certificate")
 	tlsCertKey   = flag.String("key", envOrDefault("STUB_SERVER_KEY", ""), "Path to TLS certificate key")
+	grpcReflection = flag.Bool("grpc-reflection", envBoolOrDefault("STUB_SERVER_GRPC_REFLECTION", true), "Enable gRPC reflection")
 )
 
 func main() {
@@ -37,7 +39,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	handler, err := handler.New(*httpStubDir, *protoDir, *protoStubDir)
+	handler, err := handler.NewWithOptions(*httpStubDir, *protoDir, *protoStubDir, handler.Options{
+		EnableGRPCReflection: *grpcReflection,
+	})
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to create handler", slog.String("error", err.Error()))
 		os.Exit(1)
@@ -89,6 +93,16 @@ func loadTLS(certFile string, keyFile string) (*tls.Config, error) {
 func envOrDefault(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return fallback
+}
+
+func envBoolOrDefault(key string, fallback bool) bool {
+	if value := os.Getenv(key); value != "" {
+		parsed, err := strconv.ParseBool(value)
+		if err == nil {
+			return parsed
+		}
 	}
 	return fallback
 }
