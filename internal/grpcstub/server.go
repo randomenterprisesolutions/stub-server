@@ -35,13 +35,24 @@ type GRPCService struct {
 	grpcServer *grpc.Server
 	files      *protoregistry.Files
 	types      *protoregistry.Types
+	enableReflection bool
 }
 
 // NewServer creates a new gRPC server, loads proto definitions from the
 // specified protoDir, and loads stub definitions from the specified protoStubDir.
 func NewServer(protoDir string, protoStubDir string) (*grpc.Server, error) {
+	return NewServerWithOptions(protoDir, protoStubDir, ServerOptions{EnableReflection: true})
+}
+
+// ServerOptions controls optional gRPC server features.
+type ServerOptions struct {
+	EnableReflection bool
+}
+
+// NewServerWithOptions creates a new gRPC server with configurable options.
+func NewServerWithOptions(protoDir string, protoStubDir string, opts ServerOptions) (*grpc.Server, error) {
 	server := grpc.NewServer()
-	if err := registerServices(server, protoDir, protoStubDir, NewStorage()); err != nil {
+	if err := registerServices(server, protoDir, protoStubDir, NewStorage(), opts); err != nil {
 		return nil, fmt.Errorf("register services: %w", err)
 	}
 
@@ -50,13 +61,14 @@ func NewServer(protoDir string, protoStubDir string) (*grpc.Server, error) {
 
 // registerServices loads proto files from the specified protoDir, registers them with the provided
 // gRPC server, and loads stub definitions from the specified stubDir into the provided Repository.
-func registerServices(srv *grpc.Server, protoDir string, stubDir string, r Repository) error {
+func registerServices(srv *grpc.Server, protoDir string, stubDir string, r Repository, opts ServerOptions) error {
 	s := &GRPCService{
 		stubs:      r,
 		sdMap:      map[string]protoreflect.ServiceDescriptor{},
 		grpcServer: srv,
 		files:      &protoregistry.Files{},
 		types:      &protoregistry.Types{},
+		enableReflection: opts.EnableReflection,
 	}
 
 	if err := s.registerTypes(protoDir); err != nil {
@@ -64,7 +76,9 @@ func registerServices(srv *grpc.Server, protoDir string, stubDir string, r Repos
 	}
 
 	s.registerServices()
-	s.registerReflection()
+	if s.enableReflection {
+		s.registerReflection()
+	}
 
 	if err := s.loadStubs(stubDir); err != nil {
 		return fmt.Errorf("load stubs from %v: %w", stubDir, err)

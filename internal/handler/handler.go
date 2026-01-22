@@ -24,10 +24,17 @@ type Server struct {
 
 var _ http.Handler = &Server{}
 
+// Options configures optional handler behavior.
+type Options struct {
+	EnableGRPCReflection bool
+}
+
 // WithProto configures the server to handle gRPC requests using the provided
 // proto and stub directories.
-func (s *Server) WithProto(protoDir string, stubDir string) error {
-	server, err := grpcstub.NewServer(protoDir, stubDir)
+func (s *Server) WithProto(protoDir string, stubDir string, opts Options) error {
+	server, err := grpcstub.NewServerWithOptions(protoDir, stubDir, grpcstub.ServerOptions{
+		EnableReflection: opts.EnableGRPCReflection,
+	})
 	if err != nil {
 		return fmt.Errorf("initialize gRPC server: %w", err)
 	}
@@ -84,6 +91,11 @@ func allowH2c(next http.Handler) http.Handler {
 // directories for HTTP stubs, proto files, and gRPC stubs. If the respective
 // directory is an empty string, that type of handling is not configured.
 func New(httpStubDir string, protoDir string, protoStubDir string) (http.Handler, error) {
+	return NewWithOptions(httpStubDir, protoDir, protoStubDir, Options{EnableGRPCReflection: true})
+}
+
+// NewWithOptions creates a new Server instance with configurable options.
+func NewWithOptions(httpStubDir string, protoDir string, protoStubDir string, opts Options) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	s := &Server{}
@@ -97,7 +109,7 @@ func New(httpStubDir string, protoDir string, protoStubDir string) (http.Handler
 	}
 
 	if protoDir != "" && protoStubDir != "" {
-		if err := s.WithProto(protoDir, protoStubDir); err != nil {
+		if err := s.WithProto(protoDir, protoStubDir, opts); err != nil {
 			return nil, fmt.Errorf("create gRPC handler: %w", err)
 		}
 	}

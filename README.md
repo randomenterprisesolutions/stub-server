@@ -22,6 +22,7 @@ Flags can also be provided via environment variables (flags take precedence).
 | proto | Directory containing the `.proto` files | `false` | - | `STUB_SERVER_PROTO` |
 | stubs | Directory containing the `.json` gRPC stub files | `false` | - | `STUB_SERVER_STUBS` |
 | http | Directory containing the `.json` HTTP stub files | `false` | - | `STUB_SERVER_HTTP` |
+| grpc-reflection | Enable gRPC reflection | `false` | `true` | `STUB_SERVER_GRPC_REFLECTION` |
 
 ## HTTP stub server
 To start the HTTP stub server one needs to specify the path to the HTTP stub dir.
