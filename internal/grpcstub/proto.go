@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
@@ -79,8 +80,15 @@ func (s *GRPCService) registerProto(protoDir string, protoFileName string) (err 
 		return nil
 	}
 
-	f, err := os.Open(path.Join(protoDir, protoFileName))
+	fullPath := path.Join(protoDir, protoFileName)
+	f, err := os.Open(fullPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) && isWellKnownProto(protoFileName) {
+			if err := s.registerWellKnown(protoFileName); err != nil {
+				return fmt.Errorf("open file: %w (well-known proto dependency %s missing from registry)", err, protoFileName)
+			}
+			return nil
+		}
 		return fmt.Errorf("open file: %w", err)
 	}
 	defer func() {
@@ -120,16 +128,61 @@ func (s *GRPCService) registerProto(protoDir string, protoFileName string) (err 
 
 	for i := 0; i < fd.Messages().Len(); i++ {
 		msg := fd.Messages().Get(i)
-		if err := s.types.RegisterMessage(dynamicpb.NewMessageType(msg)); err != nil {
+		if err := registerMessageType(s.types, msg); err != nil {
 			return fmt.Errorf("register message %q: %w", msg.FullName(), err)
 		}
 	}
 	for i := 0; i < fd.Extensions().Len(); i++ {
 		ext := fd.Extensions().Get(i)
-		if err := s.types.RegisterExtension(dynamicpb.NewExtensionType(ext)); err != nil {
+		if err := registerExtensionType(s.types, ext); err != nil {
 			return fmt.Errorf("register extension %q: %w", ext.FullName(), err)
 		}
 	}
 
 	return nil
+}
+
+func isWellKnownProto(path string) bool {
+	return strings.HasPrefix(path, "google/protobuf/")
+}
+
+func (s *GRPCService) registerWellKnown(protoFileName string) error {
+	fd, err := protoregistry.GlobalFiles.FindFileByPath(protoFileName)
+	if err != nil {
+		return err
+	}
+	if err := s.files.RegisterFile(fd); err != nil {
+		return err
+	}
+	for i := 0; i < fd.Messages().Len(); i++ {
+		msg := fd.Messages().Get(i)
+		if err := registerMessageType(s.types, msg); err != nil {
+			return err
+		}
+	}
+	for i := 0; i < fd.Extensions().Len(); i++ {
+		ext := fd.Extensions().Get(i)
+		if err := registerExtensionType(s.types, ext); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func registerMessageType(types *protoregistry.Types, msg protoreflect.MessageDescriptor) error {
+	if _, err := types.FindMessageByName(msg.FullName()); err == nil {
+		return nil
+	} else if !errors.Is(err, protoregistry.NotFound) {
+		return err
+	}
+	return types.RegisterMessage(dynamicpb.NewMessageType(msg))
+}
+
+func registerExtensionType(types *protoregistry.Types, ext protoreflect.ExtensionDescriptor) error {
+	if _, err := types.FindExtensionByName(ext.FullName()); err == nil {
+		return nil
+	} else if !errors.Is(err, protoregistry.NotFound) {
+		return err
+	}
+	return types.RegisterExtension(dynamicpb.NewExtensionType(ext))
 }
