@@ -1,9 +1,6 @@
 package grpcstub
 
-import (
-	"encoding/json"
-	"sync"
-)
+import "sync"
 
 // Storage is an in-memory storage for gRPC stubs.
 type Storage struct {
@@ -35,7 +32,7 @@ func (p *Storage) Add(s ProtoStub) {
 }
 
 // Get retrieves the Output for a given service and method.
-func (p *Storage) Get(service string, method string, _ json.RawMessage) (Output, bool) {
+func (p *Storage) Get(service string, method string) (Output, bool) {
 	p.m.Lock()
 	defer p.m.Unlock()
 

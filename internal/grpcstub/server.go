@@ -4,7 +4,6 @@ package grpcstub
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,7 +25,7 @@ import (
 // Repository defines the interface for storing and retrieving gRPC stubs.
 type Repository interface {
 	Add(stub ProtoStub)
-	Get(service string, method string, in json.RawMessage) (Output, bool)
+	Get(service string, method string) (Output, bool)
 }
 
 // GRPCService represents a gRPC service that can handle requests based on loaded stubs.
@@ -118,7 +117,7 @@ func (s *GRPCService) Handler(_ any, ctx context.Context, deccode func(any) erro
 		return nil, status.Error(codes.InvalidArgument, "Failed to marshall input")
 	}
 
-	resp, ok := s.stubs.Get(serviceName, methodName, jsonInput)
+	resp, ok := s.stubs.Get(serviceName, methodName)
 	if !ok {
 		slog.ErrorContext(ctx, "No stub configured", slog.String("service", serviceName), slog.String("method", methodName))
 		return nil, status.Error(codes.NotFound, "No stub configured")
@@ -179,7 +178,7 @@ func (s *GRPCService) ServerStreamHandler(_ any, stream grpc.ServerStream) error
 	}
 	slog.InfoContext(ctx, "Received message", slog.String("input", string(jsonInput)))
 
-	resp, ok := s.stubs.Get(serviceName, methodName, jsonInput)
+	resp, ok := s.stubs.Get(serviceName, methodName)
 	if !ok {
 		slog.ErrorContext(ctx, "No stub configured", slog.String("service", serviceName), slog.String("method", methodName))
 		return status.Error(codes.NotFound, "No stub configured")
@@ -237,7 +236,7 @@ func (s *GRPCService) ClientStreamHandler(_ any, stream grpc.ServerStream) error
 		return status.Error(codes.Unimplemented, "method "+methodName+" not found")
 	}
 
-	resp, ok := s.stubs.Get(serviceName, methodName, nil)
+	resp, ok := s.stubs.Get(serviceName, methodName)
 	if !ok {
 		return status.Error(codes.NotFound, "no stub found")
 	}
