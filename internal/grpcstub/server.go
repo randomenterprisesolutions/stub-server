@@ -14,9 +14,12 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	grpcreflection "google.golang.org/grpc/reflection"
+	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
@@ -31,6 +34,8 @@ type GRPCService struct {
 	stubs      Repository
 	sdMap      map[string]protoreflect.ServiceDescriptor
 	grpcServer *grpc.Server
+	files      *protoregistry.Files
+	types      *protoregistry.Types
 }
 
 // NewServer creates a new gRPC server, loads proto definitions from the
@@ -51,6 +56,8 @@ func registerServices(srv *grpc.Server, protoDir string, stubDir string, r Repos
 		stubs:      r,
 		sdMap:      map[string]protoreflect.ServiceDescriptor{},
 		grpcServer: srv,
+		files:      &protoregistry.Files{},
+		types:      &protoregistry.Types{},
 	}
 
 	if err := s.registerTypes(protoDir); err != nil {
@@ -58,12 +65,22 @@ func registerServices(srv *grpc.Server, protoDir string, stubDir string, r Repos
 	}
 
 	s.registerServices()
+	s.registerReflection()
 
 	if err := s.loadStubs(stubDir); err != nil {
 		return fmt.Errorf("load stubs from %v: %w", stubDir, err)
 	}
 
 	return nil
+}
+
+func (s *GRPCService) registerReflection() {
+	opts := grpcreflection.ServerOptions{
+		Services:           s.grpcServer,
+		DescriptorResolver: s.files,
+		ExtensionResolver:  s.types,
+	}
+	reflectionv1.RegisterServerReflectionServer(s.grpcServer, grpcreflection.NewServerV1(opts))
 }
 
 // Handler handles unary gRPC calls by matching them against loaded stubs and returning
@@ -90,6 +107,7 @@ func (s *GRPCService) Handler(_ any, ctx context.Context, deccode func(any) erro
 
 	if err := deccode(input); err != nil {
 		slog.ErrorContext(ctx, "Failed to decode input message", slog.String("error", err.Error()))
+		return nil, status.Error(codes.InvalidArgument, "Failed to decode input message")
 	}
 
 	jsonInput, err := protojson.Marshal(input)
