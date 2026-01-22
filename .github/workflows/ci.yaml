@@ -110,14 +110,10 @@ jobs:
 
       - name: Build and push Windows image
         run: |
-          docker build -f Dockerfile.windows -t ${{ env.REGISTRY }}/${{ github.repository }}:windows-${{ github.ref_name }} .
-          docker tag ${{ env.REGISTRY }}/${{ github.repository }}:windows-${{ github.ref_name }} ${{ env.REGISTRY }}/${{ github.repository }}:windows-latest
-          docker push ${{ env.REGISTRY }}/${{ github.repository }}:windows-${{ github.ref_name }}
-          docker push ${{ env.REGISTRY }}/${{ github.repository }}:windows-latest
-          if ($env:GITHUB_REF_NAME -notmatch '-') {
-            docker tag ${{ env.REGISTRY }}/${{ github.repository }}:windows-${{ github.ref_name }} ${{ env.REGISTRY }}/${{ github.repository }}:windows-stable
-            docker push ${{ env.REGISTRY }}/${{ github.repository }}:windows-stable
-          }
+          docker build -f Dockerfile.windows -t ${{ env.REGISTRY }}/${{ github.repository }}/cmd:windows-${{ github.ref_name }} .
+          docker tag ${{ env.REGISTRY }}/${{ github.repository }}/cmd:windows-${{ github.ref_name }} ${{ env.REGISTRY }}/${{ github.repository }}/cmd:windows-latest
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}/cmd:windows-${{ github.ref_name }}
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}/cmd:windows-latest
 
   multiarch_manifest:
     if: startsWith(github.ref, 'refs/tags/')
@@ -140,16 +136,10 @@ jobs:
       - name: Create multi-arch manifest
         run: |
           docker buildx imagetools create \
-            -t ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.ref_name }} \
-            ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.ref_name }} \
-            ${{ env.REGISTRY }}/${{ github.repository }}:windows-${{ github.ref_name }}
+            -t ${{ env.REGISTRY }}/${{ github.repository }}/cmd:${{ github.ref_name }} \
+            ${{ env.REGISTRY }}/${{ github.repository }}/cmd:${{ github.ref_name }} \
+            ${{ env.REGISTRY }}/${{ github.repository }}/cmd:windows-${{ github.ref_name }}
           docker buildx imagetools create \
-            -t ${{ env.REGISTRY }}/${{ github.repository }}:latest \
-            ${{ env.REGISTRY }}/${{ github.repository }}:latest \
-            ${{ env.REGISTRY }}/${{ github.repository }}:windows-latest
-          if [[ "${GITHUB_REF_NAME}" != *-* ]]; then
-            docker buildx imagetools create \
-              -t ${{ env.REGISTRY }}/${{ github.repository }}:stable \
-              ${{ env.REGISTRY }}/${{ github.repository }}:stable \
-              ${{ env.REGISTRY }}/${{ github.repository }}:windows-stable
-          fi
+            -t ${{ env.REGISTRY }}/${{ github.repository }}/cmd:latest \
+            ${{ env.REGISTRY }}/${{ github.repository }}/cmd:latest \
+            ${{ env.REGISTRY }}/${{ github.repository }}/cmd:windows-latest

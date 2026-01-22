@@ -173,7 +173,8 @@ export STUB_SERVER_STUBS=/stubs/grpc
 
 
 # Docker images
-Linux images are published via GoReleaser. A Windows Server 2022 (nanoserver) image is also published on tags with the suffix `windows-<tag>`. Tag releases are multi-arch manifests that include both Linux and Windows.
+Linux images are published via GoReleaser at `ghcr.io/randomenterprisesolutions/stub-server/cmd`. A Windows Server 2022 (nanoserver) image is also published on tags with the suffix `windows-<tag>`. Tag releases are multi-arch manifests that include both Linux and Windows. The `latest` tag is maintained; no `stable` tag is published.
 
-Example:
-`ghcr.io/randomenterprisesolutions/stub-server:windows-v0.6.0`
+Examples:
+`ghcr.io/randomenterprisesolutions/stub-server/cmd:v0.6.0`
+`ghcr.io/randomenterprisesolutions/stub-server/cmd:windows-v0.6.0`
