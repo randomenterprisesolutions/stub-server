@@ -1,0 +1,5 @@
+# escape=`
+FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
+WORKDIR C:\app
+COPY stub-server.exe C:\app\stub-server.exe
+ENTRYPOINT ["C:\\app\\stub-server.exe"]
