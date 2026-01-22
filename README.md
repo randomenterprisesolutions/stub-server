@@ -1,13 +1,20 @@
 # Stub Server
-The Stub Server is a simple stubs server for HTTP(s) and gRPC.
-No need to invoke the proto compiler - the proto files are loaded dynamically.
-It supports streaming and unary RPC calls for gRPC.
-The HTTP and gRPC server run on the same port.
+Lightweight stub server for HTTP and gRPC on one port. Loads `.proto` files directly (no descriptor sets) and supports unary + streaming gRPC.
 
 # What it is (and isn't)
-- Lightweight stub server for HTTP and gRPC based on files on disk.
-- Loads `.proto` files directly; no precompiled descriptor sets required.
-- Designed for local development, demos and simple testing, not contract testing.
+- File-based stubs for local dev, demos, and simple testing.
+- Not a full contract testing/verification tool.
+
+# Comparison
+| Tool | HTTP | gRPC | gRPC streaming | File-based stubs | Raw HTTP response files | Request body matching | Admin API / UI | Verification |
+|-|-|-|-|-|-|-|-|-|
+| Stub Server (this) | Yes | Yes | Yes | Yes | Yes | No | No | No |
+| WireMock | Yes | No | No | Yes | Limited | Yes | Yes | Yes |
+| MockServer | Yes | Partial (via gRPC proxying) | Limited | Yes | Limited | Yes | Yes | Yes |
+| Imposter (imposter.js) | Yes | Yes | Partial | Yes | Limited | Yes | Yes | Partial |
+
+Notes:
+- "Limited/Partial" varies by tool/version; this is a high-level comparison.
 
 # Usage
 
@@ -163,16 +170,9 @@ export STUB_SERVER_STUBS=/stubs/grpc
 ./stub-server
 ```
 
-# Comparison
-The focus here is file-based stubbing with minimal moving parts.
 
-| Tool | HTTP | gRPC | File-based stubs | Raw HTTP response files | Request body matching | Admin API / UI | Verification |
-|-|-|-|-|-|-|-|-|
-| Stub Server (this) | Yes | Yes | Yes | Yes | No | No | No |
-| WireMock | Yes | No | Yes | Limited | Yes | Yes | Yes |
-| MockServer | Yes | Partial (via gRPC proxying) | Yes | Limited | Yes | Yes | Yes |
-| Imposter (imposter.js) | Yes | Yes | Yes | Limited | Yes | Yes | Partial |
+# Docker images
+Linux images are published via GoReleaser. A Windows Server 2022 (nanoserver) image is also published on tags with the suffix `windows-<tag>`. Tag releases are multi-arch manifests that include both Linux and Windows.
 
-Limitations by design:
-- No request body matching or verification.
-- No admin API/UI; stubs are loaded from disk on startup.
+Example:
+`ghcr.io/randomenterprisesolutions/stub-server:windows-v0.6.0`
