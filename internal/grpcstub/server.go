@@ -87,9 +87,11 @@ func (s *GRPCService) registerReflection() {
 // the corresponding responses.
 func (s *GRPCService) Handler(_ any, ctx context.Context, deccode func(any) error, _ grpc.UnaryServerInterceptor) (interface{}, error) { //nolint:revive
 	stream := grpc.ServerTransportStreamFromContext(ctx)
-	arr := strings.Split(stream.Method(), "/")
-	serviceName := arr[1]
-	methodName := arr[2]
+	serviceName, methodName, err := parseGRPCMethod(stream.Method())
+	if err != nil {
+		slog.ErrorContext(ctx, "Invalid method format", slog.String("method", stream.Method()))
+		return nil, status.Error(codes.InvalidArgument, "Invalid method format")
+	}
 
 	slog.InfoContext(ctx, "Received gRPC call", slog.String("service", serviceName), slog.String("method", methodName))
 
@@ -146,9 +148,11 @@ func (s *GRPCService) Handler(_ any, ctx context.Context, deccode func(any) erro
 func (s *GRPCService) ServerStreamHandler(_ any, stream grpc.ServerStream) error {
 	ctx := stream.Context()
 	tStream := grpc.ServerTransportStreamFromContext(ctx)
-	arr := strings.Split(tStream.Method(), "/")
-	serviceName := arr[1]
-	methodName := arr[2]
+	serviceName, methodName, err := parseGRPCMethod(tStream.Method())
+	if err != nil {
+		slog.ErrorContext(ctx, "Invalid method format", slog.String("method", tStream.Method()))
+		return status.Error(codes.InvalidArgument, "Invalid method format")
+	}
 
 	slog.InfoContext(ctx, "Received server side streaming gRPC call", slog.String("service", serviceName), slog.String("method", methodName))
 
@@ -214,9 +218,11 @@ func (s *GRPCService) ServerStreamHandler(_ any, stream grpc.ServerStream) error
 func (s *GRPCService) ClientStreamHandler(_ any, stream grpc.ServerStream) error {
 	ctx := stream.Context()
 	tStream := grpc.ServerTransportStreamFromContext(ctx)
-	arr := strings.Split(tStream.Method(), "/")
-	serviceName := arr[1]
-	methodName := arr[2]
+	serviceName, methodName, err := parseGRPCMethod(tStream.Method())
+	if err != nil {
+		slog.ErrorContext(ctx, "Invalid method format", slog.String("method", tStream.Method()))
+		return status.Error(codes.InvalidArgument, "Invalid method format")
+	}
 
 	slog.InfoContext(ctx, "Received client side streaming gRPC call", slog.String("service", serviceName), slog.String("method", methodName))
 
@@ -285,4 +291,12 @@ func (s *GRPCService) ClientStreamHandler(_ any, stream grpc.ServerStream) error
 	}
 
 	return nil
+}
+
+func parseGRPCMethod(fullMethod string) (string, string, error) {
+	parts := strings.Split(fullMethod, "/")
+	if len(parts) != 3 || parts[1] == "" || parts[2] == "" {
+		return "", "", fmt.Errorf("invalid method: %s", fullMethod)
+	}
+	return parts[1], parts[2], nil
 }
