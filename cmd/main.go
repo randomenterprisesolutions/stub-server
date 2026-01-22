@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -56,12 +57,12 @@ func main() {
 
 	eg.Go(func() error {
 		<-ctx.Done()
-		slog.Info("Closing server")
-		return srv.Close()
+		slog.Info("Shutting down server")
+		return srv.Shutdown(context.Background())
 	})
 
 	err = eg.Wait()
-	if err != nil {
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.ErrorContext(ctx, "Server stopped", slog.String("error", err.Error()))
 	}
 }

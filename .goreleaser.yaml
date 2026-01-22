@@ -1,3 +1,5 @@
+version: 2
+
 before:
   hooks:
     - go mod tidy
@@ -34,7 +36,8 @@ kos:
   # Repository to push to.
   #
   # Default: $KO_DOCKER_REPO
-  repository: ghcr.io/randomenterprisesolutions/stub-server
+  repositories: 
+  - ghcr.io/randomenterprisesolutions/stub-server
 
   # Platforms to build and publish.
   #
@@ -68,11 +71,7 @@ kos:
   # Templates: allowed
   ko_data_creation_time: '{{.CommitTimestamp}}'
 
-  # SBOM format to use.
-  #
-  # Default: 'spdx'
-  # Valid options are: spdx, cyclonedx, go.version-m and none.
-  sbom: cyclonedx
+  sbom: spdx
 
   # Bare uses a tag on the $KO_DOCKER_REPO without anything additional.
   bare: true

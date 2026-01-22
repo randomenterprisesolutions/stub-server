@@ -1,6 +1,6 @@
 module github.com/randomenterprisesolutions/stub-server
 
-go 1.25.0
+go 1.25.6
 
 require (
 	github.com/bufbuild/protocompile v0.14.1
