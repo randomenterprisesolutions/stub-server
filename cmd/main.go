@@ -17,12 +17,12 @@ import (
 )
 
 var (
-	address      = flag.String("address", ":50051", "Port to listen on")
-	protoDir     = flag.String("proto", "", "Path to proto files")
-	protoStubDir = flag.String("stubs", "", "Path to gRPC stubs")
-	httpStubDir  = flag.String("http", "", "Path to HTTP stubs")
-	tlsCert      = flag.String("cert", "", "Path to TLS certificate")
-	tlsCertKey   = flag.String("key", "", "Path to TLS certificate key")
+	address      = flag.String("address", envOrDefault("STUB_SERVER_ADDRESS", ":50051"), "Port to listen on")
+	protoDir     = flag.String("proto", envOrDefault("STUB_SERVER_PROTO", ""), "Path to proto files")
+	protoStubDir = flag.String("stubs", envOrDefault("STUB_SERVER_STUBS", ""), "Path to gRPC stubs")
+	httpStubDir  = flag.String("http", envOrDefault("STUB_SERVER_HTTP", ""), "Path to HTTP stubs")
+	tlsCert      = flag.String("cert", envOrDefault("STUB_SERVER_CERT", ""), "Path to TLS certificate")
+	tlsCertKey   = flag.String("key", envOrDefault("STUB_SERVER_KEY", ""), "Path to TLS certificate key")
 )
 
 func main() {
@@ -79,4 +79,11 @@ func loadTLS(certFile string, keyFile string) (*tls.Config, error) {
 	cfg := &tls.Config{Certificates: []tls.Certificate{cert}}
 
 	return cfg, nil
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
