@@ -36,15 +36,16 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Headers: r.Header,
 	}
 
+	if r.Body != nil {
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			slog.ErrorContext(r.Context(), "Error reading body", slog.String("error", err.Error()))
+			http.Error(w, "Error reading request body", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	stub, ok := s.stubs.Find(inv)
 	if ok {
-		if r.Body != nil {
-			if _, err := io.Copy(io.Discard, r.Body); err != nil {
-				slog.ErrorContext(r.Context(), "Error reading body", slog.String("error", err.Error()))
-				http.Error(w, "Error reading request body", http.StatusInternalServerError)
-				return
-			}
-		}
 		stub.Invoke(w)
 		return
 	}
