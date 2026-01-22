@@ -12,8 +12,13 @@ import (
 	"os"
 	"os/signal"
 
+	_ "cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"github.com/randomenterprisesolutions/stub-server/internal/handler"
 	"golang.org/x/sync/errgroup"
+	_ "google.golang.org/protobuf/types/known/anypb"
+	_ "google.golang.org/protobuf/types/known/durationpb"
+	_ "google.golang.org/protobuf/types/known/emptypb"
+	_ "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (

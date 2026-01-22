@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	"google.golang.org/grpc/test/bufconn"
+	_ "google.golang.org/protobuf/types/known/emptypb"
 )
 
 const bufSize = 1024 * 1024
@@ -48,6 +49,15 @@ func TestProtoRegistryIsolation(t *testing.T) {
 	servicesB := listServices(t, connB)
 	require.Contains(t, servicesB, "bar.Bar")
 	require.NotContains(t, servicesB, "foo.Foo")
+}
+
+func TestWellKnownProtoFallback(t *testing.T) {
+	t.Parallel()
+
+	protoDir, stubDir := setupProtoAndStub(t, "wkt", wktProto, wktStub)
+
+	_, err := grpcstub.NewServer(protoDir, stubDir)
+	require.NoError(t, err)
 }
 
 func setupProtoAndStub(t *testing.T, name, proto, stub string) (string, string) {
@@ -171,6 +181,25 @@ const barStub = `{
     "data": {
       "message": "ok"
     }
+  }
+}
+`
+
+const wktProto = `syntax = "proto3";
+package wkt;
+
+import "google/protobuf/empty.proto";
+
+service WKTService {
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+`
+
+const wktStub = `{
+  "service": "wkt.WKTService",
+  "method": "Ping",
+  "output": {
+    "data": {}
   }
 }
 `

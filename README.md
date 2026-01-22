@@ -141,6 +141,10 @@ To start HTTP and gRPC server you can combine the two commands:
 ### Reflection
 gRPC reflection (v1) is enabled by default so tools like `grpcurl` can list and describe services.
 
+# Well-known protos
+The binary includes blank imports for common well-known types (`any`, `empty`, `timestamp`, `duration`, `longrunning`) so they can be resolved without bundling `.proto` files.
+If you use other well-known protos, either include the `.proto` files under `--proto` or add a blank import in the main package.
+
 # Quick start
 HTTP only:
 `./stub-server --http ./examples/httpstubs`
