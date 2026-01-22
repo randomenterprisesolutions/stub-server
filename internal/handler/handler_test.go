@@ -139,6 +139,20 @@ func TestHTTPServer(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.JSONEq(t, `{"name": "Jane Doe", "birthdate": "20-06-1990"}`, string(body))
 	})
+
+	t.Run("regex method mismatch", func(t *testing.T) {
+		t.Parallel()
+
+		url, err := url.JoinPath(serverURL, "/users/1234")
+		require.NoError(t, err)
+
+		req, err := http.NewRequest(http.MethodPost, url, nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
 }
 
 func TestGrpcServerSuccessResponses(t *testing.T) {
