@@ -1,0 +1,10 @@
+{
+    "path": "/wildcard",
+    "method": "*",
+    "response": {
+        "body": {
+            "message": "Matches any method"
+        },
+        "status": 200
+    }
+}

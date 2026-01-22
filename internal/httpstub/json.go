@@ -22,10 +22,13 @@ var _ Stub = &JSONStub{}
 // Matches checks if the JSONStub matches the given HTTP request.
 func (s JSONStub) Matches(inv HTTPInvocation) bool {
 	if s.ExactPath != "" {
-		return inv.Path == s.ExactPath && inv.Method == s.HTTPMethod
+		if s.HTTPMethod != "*" && inv.Method != s.HTTPMethod {
+			return false
+		}
+		return inv.Path == s.ExactPath
 	}
 
-	if s.HTTPMethod != "" && inv.Method != s.HTTPMethod {
+	if s.HTTPMethod != "" && s.HTTPMethod != "*" && inv.Method != s.HTTPMethod {
 		return false
 	}
 
@@ -57,6 +60,10 @@ func (s *JSONStub) Validate() error {
 	if (s.ExactPath == "" && s.RegexPath == "") ||
 		(s.ExactPath != "" && s.RegexPath != "") {
 		return errors.New(`either "path" or "regex" field is required`)
+	}
+
+	if s.HTTPMethod == "" {
+		return errors.New(`"method" field is required`)
 	}
 
 	if s.RegexPath != "" {

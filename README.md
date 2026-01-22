@@ -39,12 +39,13 @@ The HTTP stub server supports two stub types:
 
 ### JSON
 
-The HTTP JSON stub requires only the `path` or `regex` and `response.status` fields.
+The HTTP JSON stub requires `path` or `regex`, `method`, and `response.status`. Use `method: "*"` to match any HTTP method.
 
 #### Minimal examples
 ```JSON
 {
     "path": "/helloworld",
+    "method": "*",
     "response": {
         "status": "200"
     }
@@ -54,6 +55,7 @@ The HTTP JSON stub requires only the `path` or `regex` and `response.status` fie
 ```JSON
 {
     "regex": "/users/*",
+    "method": "*",
     "response": {
         "status": "200"
     }
@@ -90,7 +92,7 @@ stubs/
 
 ### Request matching
 Matching is based on:
-- method
+- method (use `method: "*"` to match any HTTP method)
 - path (exact or regex)
 
 Query parameters and headers are not currently used for matching.
