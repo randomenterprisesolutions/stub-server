@@ -25,6 +25,10 @@ func (s JSONStub) Matches(inv HTTPInvocation) bool {
 		return inv.Path == s.ExactPath && inv.Method == s.HTTPMethod
 	}
 
+	if s.HTTPMethod != "" && inv.Method != s.HTTPMethod {
+		return false
+	}
+
 	if s.regex != nil {
 		return s.regex.MatchString(inv.Path)
 	}
