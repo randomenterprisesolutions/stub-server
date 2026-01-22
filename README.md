@@ -149,7 +149,7 @@ gRPC only:
 Both:
 `./stub-server --proto ./examples/protos --stubs ./examples/protostubs --http ./examples/httpstubs`
 
-### Docker/env example
+### Env example
 ```bash
 export STUB_SERVER_HTTP=/stubs/http
 export STUB_SERVER_PROTO=/stubs/protos
