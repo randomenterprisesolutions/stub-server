@@ -77,14 +77,11 @@ func startBufConnServer(t *testing.T, protoDir, stubDir string) (*grpc.ClientCon
 		_ = srv.Serve(listener)
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	t.Cleanup(cancel)
-
 	dialer := func(context.Context, string) (net.Conn, error) {
 		return listener.Dial()
 	}
 
-	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient("passthrough:///bufnet", grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	return conn, func() {
