@@ -84,7 +84,7 @@ func (s *GRPCService) registerReflection() {
 
 // Handler handles unary gRPC calls by matching them against loaded stubs and returning
 // the corresponding responses.
-func (s *GRPCService) Handler(_ any, ctx context.Context, deccode func(any) error, _ grpc.UnaryServerInterceptor) (interface{}, error) { //nolint:revive
+func (s *GRPCService) Handler(_ any, ctx context.Context, decode func(any) error, _ grpc.UnaryServerInterceptor) (interface{}, error) { //nolint:revive
 	stream := grpc.ServerTransportStreamFromContext(ctx)
 	serviceName, methodName, err := parseGRPCMethod(stream.Method())
 	if err != nil {
@@ -104,17 +104,12 @@ func (s *GRPCService) Handler(_ any, ctx context.Context, deccode func(any) erro
 	if method == nil {
 		return nil, status.Error(codes.Unimplemented, "Method "+methodName+" not found")
 	}
-	input := dynamicpb.NewMessage(method.Input())
 
-	if err := deccode(input); err != nil {
+	// Decode to consume and validate the request payload even if we don't match on it.
+	input := dynamicpb.NewMessage(method.Input())
+	if err := decode(input); err != nil {
 		slog.ErrorContext(ctx, "Failed to decode input message", slog.String("error", err.Error()))
 		return nil, status.Error(codes.InvalidArgument, "Failed to decode input message")
-	}
-
-	jsonInput, err := protojson.Marshal(input)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to marshall input", slog.String("error", err.Error()))
-		return nil, status.Error(codes.InvalidArgument, "Failed to marshall input")
 	}
 
 	resp, ok := s.stubs.Get(serviceName, methodName)

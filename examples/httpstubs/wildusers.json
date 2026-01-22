@@ -1,0 +1,10 @@
+{
+    "regex": "/wildusers/*",
+    "method": "*",
+    "response": {
+        "body": {
+            "message": "Wildcard regex match"
+        },
+        "status": 200
+    }
+}
