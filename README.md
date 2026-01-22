@@ -12,14 +12,16 @@ The HTTP and gRPC server run on the same port.
 # Usage
 
 ## Parameters
-| Name | Usage | Required | Default |
-|-|-|-|-|
-| address | Address to listen on | `false` | `:50051` |
-| cert | Path to the `cert` file | `false` | - |
-| key | Path to the `key` file | `false` | - |
-| proto | Directory containing the `.proto` files | `false` | - |
-| stubs | Directory containing the `.json` gRPC stub files | `false` | - |
-| http | Directory containing the `.json` HTTP stub files | `false` | - |
+Flags can also be provided via environment variables (flags take precedence).
+
+| Name | Usage | Required | Default | Env var |
+|-|-|-|-|-|
+| address | Address to listen on | `false` | `:50051` | `STUB_SERVER_ADDRESS` |
+| cert | Path to the `cert` file | `false` | - | `STUB_SERVER_CERT` |
+| key | Path to the `key` file | `false` | - | `STUB_SERVER_KEY` |
+| proto | Directory containing the `.proto` files | `false` | - | `STUB_SERVER_PROTO` |
+| stubs | Directory containing the `.json` gRPC stub files | `false` | - | `STUB_SERVER_STUBS` |
+| http | Directory containing the `.json` HTTP stub files | `false` | - | `STUB_SERVER_HTTP` |
 
 ## HTTP stub server
 To start the HTTP stub server one needs to specify the path to the HTTP stub dir.
@@ -146,6 +148,14 @@ gRPC only:
 
 Both:
 `./stub-server --proto ./examples/protos --stubs ./examples/protostubs --http ./examples/httpstubs`
+
+### Env example
+```bash
+export STUB_SERVER_HTTP=/stubs/http
+export STUB_SERVER_PROTO=/stubs/protos
+export STUB_SERVER_STUBS=/stubs/grpc
+./stub-server
+```
 
 # Comparison
 The focus here is file-based stubbing with minimal moving parts.
