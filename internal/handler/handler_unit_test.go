@@ -33,7 +33,7 @@ func TestServerServeHTTP_NoGRPCConfigured(t *testing.T) {
 func TestServerServeHTTP_UsesHTTPHandler(t *testing.T) {
 	called := false
 	server := &Server{
-		httpHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpHandler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			called = true
 			w.WriteHeader(http.StatusAccepted)
 		}),

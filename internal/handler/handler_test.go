@@ -17,9 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	helloworldpb "google.golang.org/grpc/examples/helloworld/helloworld"
 	routeguide "google.golang.org/grpc/examples/route_guide/routeguide"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var serverURL string
@@ -46,36 +49,54 @@ func startTestServer(httpDir, protoDir, stubDir string) (*httptest.Server, error
 	return server, err
 }
 
-func TestHTTPServer(t *testing.T) {
+func TestHTTPServerErrorResponses(t *testing.T) {
 	t.Parallel()
 
-	t.Run("URL not found", func(t *testing.T) {
-		t.Parallel()
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		status int
+	}{
+		{
+			name:   "URL not found",
+			method: http.MethodGet,
+			path:   "not-found",
+			status: http.StatusNotFound,
+		},
+		{
+			name:   "method not found",
+			method: http.MethodPost,
+			path:   "helloworld",
+			status: http.StatusNotFound,
+		},
+		{
+			name:   "regex method mismatch",
+			method: http.MethodPost,
+			path:   "/users/1234",
+			status: http.StatusNotFound,
+		},
+	}
 
-		url, err := url.JoinPath(serverURL, "not-found")
-		require.NoError(t, err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		req, err := http.NewRequest(http.MethodGet, url, nil)
-		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	})
+			url, err := url.JoinPath(serverURL, tc.path)
+			require.NoError(t, err)
 
-	t.Run("Method not found", func(t *testing.T) {
-		t.Parallel()
+			req, err := http.NewRequest(tc.method, url, nil)
+			require.NoError(t, err)
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			assert.Equal(t, tc.status, resp.StatusCode)
+		})
+	}
+}
 
-		url, err := url.JoinPath(serverURL, "helloworld")
-		require.NoError(t, err)
-
-		req, err := http.NewRequest(http.MethodPost, url, nil)
-		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	})
+func TestHTTPServerSuccessResponses(t *testing.T) {
+	t.Parallel()
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
@@ -138,20 +159,6 @@ func TestHTTPServer(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.JSONEq(t, `{"name": "Jane Doe", "birthdate": "20-06-1990"}`, string(body))
-	})
-
-	t.Run("regex method mismatch", func(t *testing.T) {
-		t.Parallel()
-
-		url, err := url.JoinPath(serverURL, "/users/1234")
-		require.NoError(t, err)
-
-		req, err := http.NewRequest(http.MethodPost, url, nil)
-		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 
 	t.Run("wildcard method", func(t *testing.T) {
@@ -270,4 +277,78 @@ func TestGrpcServerSuccessResponses(t *testing.T) {
 		assert.Equal(t, int32(1000), summary.Distance)
 		assert.Equal(t, int32(120), summary.ElapsedTime)
 	})
+}
+
+func TestGrpcServerErrorResponses(t *testing.T) {
+	t.Parallel()
+
+	url, _ := strings.CutPrefix(serverURL, "http://")
+	c, err := grpc.NewClient(url, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	cases := []struct {
+		name     string
+		call     func(*grpc.ClientConn) error
+		wantCode codes.Code
+	}{
+		{
+			name: "unknown service",
+			call: func(conn *grpc.ClientConn) error {
+				return conn.Invoke(context.TODO(), "/missing.Service/Method", &emptypb.Empty{}, &emptypb.Empty{})
+			},
+			wantCode: codes.Unimplemented,
+		},
+		{
+			name: "unknown method",
+			call: func(conn *grpc.ClientConn) error {
+				return conn.Invoke(context.TODO(), "/helloworld.Greeter/Unknown", &emptypb.Empty{}, &emptypb.Empty{})
+			},
+			wantCode: codes.Unimplemented,
+		},
+		{
+			name: "no stub configured",
+			call: func(conn *grpc.ClientConn) error {
+				client := routeguide.NewRouteGuideClient(conn)
+				stream, err := client.RouteChat(context.TODO())
+				if err != nil {
+					return err
+				}
+				if err := stream.Send(&routeguide.RouteNote{
+					Location: &routeguide.Point{Latitude: 1, Longitude: 2},
+					Message:  "hello",
+				}); err != nil {
+					return err
+				}
+				_, err = stream.Recv()
+				return err
+			},
+			wantCode: codes.NotFound,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.call(c)
+			require.Error(t, err)
+			require.Equal(t, tc.wantCode, status.Code(err))
+		})
+	}
+}
+
+func TestHTTPServer_NoHTTPHandlerConfigured(t *testing.T) {
+	t.Parallel()
+
+	handler, err := handler.New("", "../../examples/protos", "../../examples/protostubs")
+	require.NoError(t, err)
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/hello", nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, http.StatusNotImplemented, resp.StatusCode)
 }
