@@ -8,14 +8,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // HTTPStub represents a predefined HTTP stub.
 type HTTPStub struct {
-	Path       string
-	HTTPMethod string
-	Response   string
+	Path         string
+	HTTPMethod   string
+	ResponsePath string
 }
 
 var _ Stub = &HTTPStub{}
@@ -32,10 +31,19 @@ func (s HTTPStub) Type() MatchType {
 
 // Invoke writes the HTTPStub response to the provided http.ResponseWriter.
 func (s *HTTPStub) Invoke(w http.ResponseWriter) {
+	f, err := os.Open(s.ResponsePath)
+	if err != nil {
+		http.Error(w, "Failed to read response", http.StatusInternalServerError)
+		return
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
 	req := &http.Request{
 		Method: s.HTTPMethod,
 	}
-	resp, err := http.ReadResponse(bufio.NewReader(strings.NewReader(s.Response)), req)
+	resp, err := http.ReadResponse(bufio.NewReader(f), req)
 	if err != nil {
 		http.Error(w, "Failed to write response", http.StatusInternalServerError)
 		return
@@ -66,20 +74,17 @@ func (s *HTTPStub) Validate() error {
 		return errors.New(`"method" field is required`)
 	}
 
+	if s.ResponsePath == "" {
+		return errors.New(`"response_path" field is required`)
+	}
+
 	return nil
 }
 
 func loadHTTPFile(root string, path string) (s Stub, err error) {
-	f, err := os.Open(path)
-	if err != nil {
+	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("open file: %v: %w", path, err)
 	}
-	defer func() {
-		closeErr := f.Close()
-		if closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("close file: %w", closeErr))
-		}
-	}()
 
 	relPath, err := filepath.Rel(root, path)
 	if err != nil {
@@ -95,15 +100,10 @@ func loadHTTPFile(root string, path string) (s Stub, err error) {
 		return nil, fmt.Errorf("could not determine HTTP method from file name: %v", path)
 	}
 
-	rawResponse, err := io.ReadAll(f)
-	if err != nil {
-		return nil, fmt.Errorf("read file: %v: %w", path, err)
-	}
-
 	stub := HTTPStub{
-		Path:       "/" + filepath.Dir(dir),
-		HTTPMethod: method,
-		Response:   string(rawResponse),
+		Path:         "/" + filepath.Dir(dir),
+		HTTPMethod:   method,
+		ResponsePath: path,
 	}
 
 	if err := stub.Validate(); err != nil {
