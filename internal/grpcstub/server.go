@@ -4,6 +4,7 @@ package grpcstub
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	grpcreflection "google.golang.org/grpc/reflection"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	"google.golang.org/grpc/status"
@@ -21,12 +23,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
-
-// Repository defines the interface for storing and retrieving gRPC stubs.
-type Repository interface {
-	Add(stub ProtoStub)
-	Get(service string, method string) (Output, bool)
-}
 
 // GRPCService represents a gRPC service that can handle requests based on loaded stubs.
 type GRPCService struct {
@@ -126,7 +122,8 @@ func (s *GRPCService) Handler(_ any, ctx context.Context, decode func(any) error
 		return nil, status.Error(codes.InvalidArgument, "Failed to decode input message")
 	}
 
-	resp, ok := s.stubs.Get(serviceName, methodName)
+	inv := buildInvocation(ctx, input)
+	resp, ok := s.stubs.Find(serviceName, methodName, inv)
 	if !ok {
 		slog.ErrorContext(ctx, "No stub configured", slog.String("service", serviceName), slog.String("method", methodName))
 		return nil, status.Error(codes.NotFound, "No stub configured")
@@ -187,7 +184,8 @@ func (s *GRPCService) ServerStreamHandler(_ any, stream grpc.ServerStream) error
 	}
 	slog.InfoContext(ctx, "Received message", slog.String("input", string(jsonInput)))
 
-	resp, ok := s.stubs.Get(serviceName, methodName)
+	inv := buildInvocation(ctx, input)
+	resp, ok := s.stubs.Find(serviceName, methodName, inv)
 	if !ok {
 		slog.ErrorContext(ctx, "No stub configured", slog.String("service", serviceName), slog.String("method", methodName))
 		return status.Error(codes.NotFound, "No stub configured")
@@ -245,7 +243,10 @@ func (s *GRPCService) ClientStreamHandler(_ any, stream grpc.ServerStream) error
 		return status.Error(codes.Unimplemented, "method "+methodName+" not found")
 	}
 
-	resp, ok := s.stubs.Get(serviceName, methodName)
+	// For client-side streaming, match using only the metadata headers since
+	// the body consists of multiple messages.
+	inv := buildInvocation(ctx, nil)
+	resp, ok := s.stubs.Find(serviceName, methodName, inv)
 	if !ok {
 		return status.Error(codes.NotFound, "no stub found")
 	}
@@ -299,6 +300,28 @@ func (s *GRPCService) ClientStreamHandler(_ any, stream grpc.ServerStream) error
 	}
 
 	return nil
+}
+
+// buildInvocation constructs a GRPCInvocation from the incoming gRPC context and a decoded
+// protobuf message. The metadata is extracted from the context. The message body is marshalled
+// to JSON and unmarshalled to a map; if that fails the body is left nil.
+func buildInvocation(ctx context.Context, msg protoreflect.ProtoMessage) GRPCInvocation {
+	inv := GRPCInvocation{}
+
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		inv.Headers = map[string][]string(md)
+	}
+
+	if msg != nil {
+		if jsonBytes, err := protojson.Marshal(msg); err == nil {
+			var body map[string]any
+			if err := json.Unmarshal(jsonBytes, &body); err == nil {
+				inv.Body = body
+			}
+		}
+	}
+
+	return inv
 }
 
 func parseGRPCMethod(fullMethod string) (string, string, error) {

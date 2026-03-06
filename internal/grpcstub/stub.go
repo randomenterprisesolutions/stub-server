@@ -6,9 +6,142 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	"strings"
 
 	"google.golang.org/grpc/codes"
 )
+
+// HeaderMatcher matches a single gRPC metadata value using exact string equality or a regex pattern.
+type HeaderMatcher struct {
+	Exact string `json:"exact"`
+	Regex string `json:"regex"`
+	regex *regexp.Regexp
+}
+
+func (m *HeaderMatcher) matches(value string) bool {
+	if m.Exact != "" {
+		return value == m.Exact
+	}
+	if m.regex != nil {
+		return m.regex.MatchString(value)
+	}
+	return false
+}
+
+func (m *HeaderMatcher) validate() error {
+	if m.Exact != "" && m.Regex != "" {
+		return errors.New(`only one of "exact" or "regex" can be set`)
+	}
+	if m.Exact == "" && m.Regex == "" {
+		return errors.New(`one of "exact" or "regex" is required`)
+	}
+	if m.Regex != "" {
+		compiled, err := regexp.Compile(m.Regex)
+		if err != nil {
+			return fmt.Errorf("invalid regex: %w", err)
+		}
+		m.regex = compiled
+	}
+	return nil
+}
+
+// BodyMatcher matches a JSON-encoded gRPC request body against an exact map or a contains (subset) map.
+type BodyMatcher struct {
+	Exact    map[string]any `json:"exact"`
+	Contains map[string]any `json:"contains"`
+}
+
+func (m *BodyMatcher) matches(body map[string]any) bool {
+	if m.Exact != nil {
+		return reflect.DeepEqual(body, m.Exact)
+	}
+	if m.Contains != nil {
+		return grpcJSONContains(body, m.Contains)
+	}
+	return false
+}
+
+func (m *BodyMatcher) validate() error {
+	if m.Exact != nil && m.Contains != nil {
+		return errors.New(`only one of "exact" or "contains" can be set`)
+	}
+	if m.Exact == nil && m.Contains == nil {
+		return errors.New(`one of "exact" or "contains" is required`)
+	}
+	return nil
+}
+
+// RequestMatcher holds matchers for gRPC request attributes used to select a stub.
+type RequestMatcher struct {
+	Headers map[string]HeaderMatcher `json:"headers"`
+	Body    *BodyMatcher             `json:"body"`
+}
+
+func (m *RequestMatcher) matchesInvocation(inv GRPCInvocation) bool {
+	for name, matcher := range m.Headers {
+		values := inv.Headers[strings.ToLower(name)]
+		if len(values) == 0 {
+			return false
+		}
+		matched := false
+		for _, v := range values {
+			if matcher.matches(v) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	if m.Body != nil {
+		if inv.Body == nil {
+			return false
+		}
+		if !m.Body.matches(inv.Body) {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *RequestMatcher) validate() error {
+	for name, matcher := range m.Headers {
+		if err := matcher.validate(); err != nil {
+			return fmt.Errorf("header %q: %w", name, err)
+		}
+		// Reassign to preserve the compiled regex stored during validate().
+		m.Headers[name] = matcher
+	}
+	if m.Body != nil {
+		if err := m.Body.validate(); err != nil {
+			return fmt.Errorf("body: %w", err)
+		}
+	}
+	return nil
+}
+
+// grpcJSONContains reports whether full contains all key-value pairs from subset, recursively for nested maps.
+func grpcJSONContains(full, subset map[string]any) bool {
+	for k, sv := range subset {
+		fv, ok := full[k]
+		if !ok {
+			return false
+		}
+		svMap, svIsMap := sv.(map[string]any)
+		fvMap, fvIsMap := fv.(map[string]any)
+		if svIsMap && fvIsMap {
+			if !grpcJSONContains(fvMap, svMap) {
+				return false
+			}
+		} else if !reflect.DeepEqual(fv, sv) {
+			return false
+		}
+	}
+	return true
+}
 
 // Stream represents a stream of gRPC responses.
 type Stream struct {
@@ -46,10 +179,10 @@ func (o *Output) validate() error {
 
 // ProtoStub represents a gRPC stub definition.
 type ProtoStub struct {
-	Service string `json:"service"`
-	Method  string `json:"method"`
-	Matcher string `json:"matcher"`
-	Output  Output `json:"output"`
+	Service string          `json:"service"`
+	Method  string          `json:"method"`
+	Request *RequestMatcher `json:"request"`
+	Output  Output          `json:"output"`
 }
 
 func (s *ProtoStub) validate() error {
@@ -58,6 +191,12 @@ func (s *ProtoStub) validate() error {
 	}
 	if s.Method == "" {
 		return fmt.Errorf(`"method" field is required`)
+	}
+
+	if s.Request != nil {
+		if err := s.Request.validate(); err != nil {
+			return fmt.Errorf("request validation: %w", err)
+		}
 	}
 
 	return s.Output.validate()

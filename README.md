@@ -6,9 +6,9 @@ Lightweight stub server for HTTP and gRPC on one port. Loads `.proto` files dire
 - Not a full contract testing/verification tool.
 
 # Comparison
-| Tool | HTTP | gRPC | gRPC streaming | File-based stubs | Raw HTTP response files | Request body matching | Admin API / UI | Verification |
+| Tool | HTTP | gRPC | gRPC streaming | File-based stubs | Raw HTTP response files | Request matching | Admin API / UI | Verification |
 |-|-|-|-|-|-|-|-|-|
-| Stub Server (this) | Yes | Yes | Yes | Yes | Yes | No | No | No |
+| Stub Server (this) | Yes | Yes | Yes | Yes | Yes | Headers + JSON body | No | No |
 | WireMock | Yes | No | No | Yes | Limited | Yes | Yes | Yes |
 | MockServer | Yes | Partial (via gRPC proxying) | Limited | Yes | Limited | Yes | Yes | Yes |
 | Imposter (imposter.js) | Yes | Yes | Partial | Yes | Limited | Yes | Yes | Partial |
@@ -42,7 +42,7 @@ The HTTP stub server supports two stub types:
 ### Stub formats
 | Format | When to use | Notes |
 |-|-|-|
-| JSON | Most HTTP responses with structured bodies | Supports exact or regex path matching, plus headers/status/body. |
+| JSON | Most HTTP responses with structured bodies | Supports exact or regex path matching, plus request header/body matching and headers/status/body in the response. |
 | Raw HTTP | Multipart/binary or highly custom responses | Full control over headers/body as a raw HTTP response. |
 
 ### JSON
@@ -99,20 +99,107 @@ stubs/
 ```
 
 ### Request matching
-Matching is based on:
-- method (use `method: "*"` to match any HTTP method)
-- path (exact or regex)
+Stubs can optionally specify a `request` block to narrow matching beyond path and method. When multiple stubs share the same path and method, stubs with a `request` matcher are checked before stubs without one.
 
-Query parameters and headers are not currently used for matching.
+#### Matching fields
+| Field | Type | Description |
+|-|-|-|
+| `request.headers` | object | Map of header name to a `HeaderMatcher`. |
+| `request.body` | object | A `BodyMatcher` for the JSON request body. |
+
+#### Header matching
+Each entry in `request.headers` is a `HeaderMatcher` with exactly one of:
+
+| Field | Description |
+|-|-|
+| `exact` | The header value must equal this string exactly. |
+| `regex` | The header value must match this Go regular expression. |
+
+Header names are matched case-insensitively (Go's `http.Header.Get` canonicalization applies).
+
+```JSON
+{
+    "path": "/secure",
+    "method": "POST",
+    "request": {
+        "headers": {
+            "Authorization": {"exact": "Bearer my-token"},
+            "Content-Type":  {"regex": "^application/.*"}
+        }
+    },
+    "response": {
+        "status": 200,
+        "body": {"ok": true}
+    }
+}
+```
+
+#### JSON body matching
+`request.body` is a `BodyMatcher` with exactly one of:
+
+| Field | Description |
+|-|-|
+| `exact` | The parsed JSON request body must be deeply equal to this object. |
+| `contains` | The parsed JSON request body must contain all key-value pairs in this object (recursively for nested maps). |
+
+The request body must be valid JSON for body matching to work. Non-JSON bodies (e.g. form data, binary) will not match a body matcher.
+
+```JSON
+{
+    "path": "/orders",
+    "method": "POST",
+    "request": {
+        "body": {
+            "contains": {"status": "pending"}
+        }
+    },
+    "response": {
+        "status": 202
+    }
+}
+```
+
+#### Combined header and body matching example
+```JSON
+{
+    "path": "/api/v1/users",
+    "method": "POST",
+    "request": {
+        "headers": {
+            "X-Api-Key": {"exact": "secret-key"}
+        },
+        "body": {
+            "contains": {"role": "admin"}
+        }
+    },
+    "response": {
+        "status": 201,
+        "body": {"created": true}
+    }
+}
+```
+
+#### Fallback stub (no request matcher)
+A stub without a `request` block acts as a fallback and matches any request that reaches it (after all stubs with request matchers have been checked):
+
+```JSON
+{
+    "path": "/api/v1/users",
+    "method": "POST",
+    "response": {
+        "status": 400,
+        "body": {"error": "unauthorized"}
+    }
+}
+```
 
 ### Non-goals
-- request body matching
 - contract validation
 - expectation verification
 
 ## gRPC stub server
 
-The gRPC stub requires the `service`, `method` and `outputs` fields.
+The gRPC stub requires the `service`, `method` and `output` fields. An optional `request` block enables matching on incoming metadata (headers) and the decoded request message body.
 
 ### Unary success example
 ```JSON
@@ -137,6 +224,56 @@ The gRPC stub requires the `service`, `method` and `outputs` fields.
             "code": 3,
             "message": "Invalid request"
         }
+    }
+}
+```
+
+### Request matching
+The optional `request` block supports the same `headers` and `body` matchers as the HTTP stubs. Multiple stubs for the same service and method are allowed; stubs with a `request` matcher are checked before stubs without one, which acts as a fallback.
+
+#### Header matching
+gRPC metadata keys are always lowercase. Each entry in `request.headers` accepts exactly one of `exact` or `regex`.
+
+```JSON
+{
+    "service": "helloworld.Greeter",
+    "method": "SayHello",
+    "request": {
+        "headers": {
+            "authorization": {"exact": "Bearer my-token"}
+        }
+    },
+    "output": {
+        "data": {"message": "Hello, authenticated user"}
+    }
+}
+```
+
+#### JSON body matching
+The request body is the protobuf message decoded to JSON using the standard proto3 JSON mapping (field names are camelCase; `int64` values are represented as strings). Provide an `exact` or `contains` matcher:
+
+```JSON
+{
+    "service": "helloworld.Greeter",
+    "method": "SayHello",
+    "request": {
+        "body": {
+            "contains": {"name": "World"}
+        }
+    },
+    "output": {
+        "data": {"message": "Hello, World"}
+    }
+}
+```
+
+#### Fallback stub (no request matcher)
+```JSON
+{
+    "service": "helloworld.Greeter",
+    "method": "SayHello",
+    "output": {
+        "data": {"message": "Hello, unknown caller"}
     }
 }
 ```

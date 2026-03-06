@@ -22,12 +22,12 @@ func TestStorageAddGet(t *testing.T) {
 		},
 	})
 
-	out, ok := storage.Get("svc", "Get")
+	out, ok := storage.Find("svc", "Get", GRPCInvocation{})
 	require.True(t, ok)
 	require.NotNil(t, out.Code)
 	require.Equal(t, code, *out.Code)
 
-	_, ok = storage.Get("svc", "Other")
+	_, ok = storage.Find("svc", "Other", GRPCInvocation{})
 	require.False(t, ok)
 }
 
@@ -127,4 +127,135 @@ func TestLoadFile(t *testing.T) {
 	require.Equal(t, "svc", stub.Service)
 	require.Equal(t, "Get", stub.Method)
 	require.Equal(t, "boom", stub.Output.Error)
+}
+
+func TestStorageFindWithRequestMatcher(t *testing.T) {
+	storage := NewStorage()
+
+	// Specific stub: only matches when header "x-token" equals "secret".
+	storage.Add(ProtoStub{
+		Service: "svc",
+		Method:  "Call",
+		Request: &RequestMatcher{
+			Headers: map[string]HeaderMatcher{
+				"x-token": {Exact: "secret"},
+			},
+		},
+		Output: Output{Error: "matched-specific"},
+	})
+
+	// Fallback stub: matches any invocation.
+	storage.Add(ProtoStub{
+		Service: "svc",
+		Method:  "Call",
+		Output:  Output{Error: "matched-fallback"},
+	})
+
+	// Invocation with matching header should return the specific stub.
+	out, ok := storage.Find("svc", "Call", GRPCInvocation{
+		Headers: map[string][]string{"x-token": {"secret"}},
+	})
+	require.True(t, ok)
+	require.Equal(t, "matched-specific", out.Error)
+
+	// Invocation without the header should fall through to the fallback.
+	out, ok = storage.Find("svc", "Call", GRPCInvocation{
+		Headers: map[string][]string{},
+	})
+	require.True(t, ok)
+	require.Equal(t, "matched-fallback", out.Error)
+
+	// Unknown method returns nothing.
+	_, ok = storage.Find("svc", "Unknown", GRPCInvocation{})
+	require.False(t, ok)
+}
+
+func TestStorageFindBodyMatcher(t *testing.T) {
+	storage := NewStorage()
+
+	storage.Add(ProtoStub{
+		Service: "svc",
+		Method:  "Call",
+		Request: &RequestMatcher{
+			Body: &BodyMatcher{Contains: map[string]any{"action": "delete"}},
+		},
+		Output: Output{Error: "delete-stub"},
+	})
+	storage.Add(ProtoStub{
+		Service: "svc",
+		Method:  "Call",
+		Output:  Output{Error: "fallback-stub"},
+	})
+
+	// Matching body returns specific stub.
+	out, ok := storage.Find("svc", "Call", GRPCInvocation{
+		Body: map[string]any{"action": "delete", "id": "123"},
+	})
+	require.True(t, ok)
+	require.Equal(t, "delete-stub", out.Error)
+
+	// Non-matching body falls through to fallback.
+	out, ok = storage.Find("svc", "Call", GRPCInvocation{
+		Body: map[string]any{"action": "create"},
+	})
+	require.True(t, ok)
+	require.Equal(t, "fallback-stub", out.Error)
+}
+
+func TestRequestMatcherValidate(t *testing.T) {
+	cases := []struct {
+		name    string
+		matcher RequestMatcher
+		wantErr bool
+	}{
+		{
+			name: "valid header exact matcher",
+			matcher: RequestMatcher{
+				Headers: map[string]HeaderMatcher{
+					"authorization": {Exact: "Bearer token"},
+				},
+			},
+		},
+		{
+			name: "valid header regex matcher",
+			matcher: RequestMatcher{
+				Headers: map[string]HeaderMatcher{
+					"content-type": {Regex: `^application/.*`},
+				},
+			},
+		},
+		{
+			name: "invalid regex in header matcher",
+			matcher: RequestMatcher{
+				Headers: map[string]HeaderMatcher{
+					"x-header": {Regex: "[invalid"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid body contains matcher",
+			matcher: RequestMatcher{
+				Body: &BodyMatcher{Contains: map[string]any{"key": "value"}},
+			},
+		},
+		{
+			name: "body with both exact and contains is invalid",
+			matcher: RequestMatcher{
+				Body: &BodyMatcher{
+					Exact:    map[string]any{"a": "b"},
+					Contains: map[string]any{"a": "b"},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := tc.matcher
+			err := m.validate()
+			require.Equal(t, tc.wantErr, err != nil)
+		})
+	}
 }

@@ -2,6 +2,7 @@
 package httpstub
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -37,10 +38,17 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Body != nil {
-		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
 			slog.ErrorContext(r.Context(), "Error reading body", slog.String("error", err.Error()))
 			http.Error(w, "Error reading request body", http.StatusInternalServerError)
 			return
+		}
+		if len(bodyBytes) > 0 {
+			var bodyJSON map[string]any
+			if jsonErr := json.Unmarshal(bodyBytes, &bodyJSON); jsonErr == nil {
+				inv.Body = bodyJSON
+			}
 		}
 	}
 

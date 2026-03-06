@@ -11,4 +11,5 @@ type HTTPInvocation struct {
 	Path    string
 	Query   url.Values
 	Headers http.Header
+	Body    map[string]any
 }
