@@ -225,43 +225,37 @@ func TestHeaderMatcherValidateAndMatches(t *testing.T) {
 func TestBodyMatcherValidateAndMatches(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name      string
+	cases := map[string]struct {
 		matcher   BodyMatcher
 		body      map[string]any
 		wantMatch bool
 		wantErr   require.ErrorAssertionFunc
 	}{
-		{
-			name:      "exact match succeeds",
+		"exact match succeeds": {
 			matcher:   BodyMatcher{Exact: map[string]any{"name": "John"}},
 			body:      map[string]any{"name": "John"},
 			wantMatch: true,
 			wantErr:   require.NoError,
 		},
-		{
-			name:      "exact match fails when extra fields present",
+		"exact match fails when extra fields present": {
 			matcher:   BodyMatcher{Exact: map[string]any{"name": "John"}},
 			body:      map[string]any{"name": "John", "age": float64(30)},
 			wantMatch: false,
 			wantErr:   require.NoError,
 		},
-		{
-			name:      "contains match succeeds with extra fields",
+		"contains match succeeds with extra fields": {
 			matcher:   BodyMatcher{Contains: map[string]any{"name": "John"}},
 			body:      map[string]any{"name": "John", "age": float64(30)},
 			wantMatch: true,
 			wantErr:   require.NoError,
 		},
-		{
-			name:      "contains match fails when key missing",
+		"contains match fails when key missing": {
 			matcher:   BodyMatcher{Contains: map[string]any{"name": "John"}},
 			body:      map[string]any{"age": float64(30)},
 			wantMatch: false,
 			wantErr:   require.NoError,
 		},
-		{
-			name: "contains match succeeds for nested map",
+		"contains match succeeds for nested map": {
 			matcher: BodyMatcher{Contains: map[string]any{
 				"user": map[string]any{"name": "John"},
 			}},
@@ -271,20 +265,18 @@ func TestBodyMatcherValidateAndMatches(t *testing.T) {
 			wantMatch: true,
 			wantErr:   require.NoError,
 		},
-		{
-			name:    "both exact and contains is invalid",
+		"both exact and contains is invalid": {
 			matcher: BodyMatcher{Exact: map[string]any{"a": "b"}, Contains: map[string]any{"a": "b"}},
 			wantErr: require.Error,
 		},
-		{
-			name:    "neither exact nor contains is invalid",
+		"neither exact nor contains is invalid": {
 			matcher: BodyMatcher{},
 			wantErr: require.Error,
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			err := tc.matcher.validate()
@@ -297,14 +289,14 @@ func TestBodyMatcherValidateAndMatches(t *testing.T) {
 }
 
 func TestRequestMatcherMatches(t *testing.T) {
-	cases := []struct {
-		name      string
+	t.Parallel()
+
+	cases := map[string]struct {
 		matcher   RequestMatcher
 		inv       HTTPInvocation
 		wantMatch bool
 	}{
-		{
-			name: "header exact match succeeds",
+		"header exact match succeeds": {
 			matcher: RequestMatcher{
 				Headers: map[string]HeaderMatcher{
 					"Authorization": {Exact: "Bearer token"},
@@ -315,8 +307,7 @@ func TestRequestMatcherMatches(t *testing.T) {
 			},
 			wantMatch: true,
 		},
-		{
-			name: "header exact match fails",
+		"header exact match fails": {
 			matcher: RequestMatcher{
 				Headers: map[string]HeaderMatcher{
 					"Authorization": {Exact: "Bearer token"},
@@ -327,8 +318,7 @@ func TestRequestMatcherMatches(t *testing.T) {
 			},
 			wantMatch: false,
 		},
-		{
-			name: "header regex match succeeds",
+		"header regex match succeeds": {
 			matcher: RequestMatcher{
 				Headers: map[string]HeaderMatcher{
 					"Content-Type": {Regex: `^application/.*`},
@@ -339,8 +329,7 @@ func TestRequestMatcherMatches(t *testing.T) {
 			},
 			wantMatch: true,
 		},
-		{
-			name: "missing header fails match",
+		"missing header fails match": {
 			matcher: RequestMatcher{
 				Headers: map[string]HeaderMatcher{
 					"Authorization": {Exact: "Bearer token"},
@@ -349,24 +338,21 @@ func TestRequestMatcherMatches(t *testing.T) {
 			inv:       HTTPInvocation{Headers: http.Header{}},
 			wantMatch: false,
 		},
-		{
-			name: "body exact match succeeds",
+		"body exact match succeeds": {
 			matcher: RequestMatcher{
 				Body: &BodyMatcher{Exact: map[string]any{"key": "value"}},
 			},
 			inv:       HTTPInvocation{Body: map[string]any{"key": "value"}},
 			wantMatch: true,
 		},
-		{
-			name: "body match fails when body is nil",
+		"body match fails when body is nil": {
 			matcher: RequestMatcher{
 				Body: &BodyMatcher{Exact: map[string]any{"key": "value"}},
 			},
 			inv:       HTTPInvocation{},
 			wantMatch: false,
 		},
-		{
-			name: "body contains match succeeds",
+		"body contains match succeeds": {
 			matcher: RequestMatcher{
 				Body: &BodyMatcher{Contains: map[string]any{"key": "value"}},
 			},
@@ -375,8 +361,10 @@ func TestRequestMatcherMatches(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			m := tc.matcher
 			require.NoError(t, m.validate())
 			require.Equal(t, tc.wantMatch, m.matches(tc.inv))
