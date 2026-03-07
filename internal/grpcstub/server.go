@@ -123,7 +123,7 @@ func (s *GRPCService) Handler(_ any, ctx context.Context, decode func(any) error
 	}
 
 	inv := buildInvocation(ctx, input)
-	resp, ok := s.stubs.Find(serviceName, methodName, inv)
+	resp, ok := s.stubs.Get(serviceName, methodName, inv)
 	if !ok {
 		slog.ErrorContext(ctx, "No stub configured", slog.String("service", serviceName), slog.String("method", methodName))
 		return nil, status.Error(codes.NotFound, "No stub configured")
@@ -185,7 +185,7 @@ func (s *GRPCService) ServerStreamHandler(_ any, stream grpc.ServerStream) error
 	slog.InfoContext(ctx, "Received message", slog.String("input", string(jsonInput)))
 
 	inv := buildInvocation(ctx, input)
-	resp, ok := s.stubs.Find(serviceName, methodName, inv)
+	resp, ok := s.stubs.Get(serviceName, methodName, inv)
 	if !ok {
 		slog.ErrorContext(ctx, "No stub configured", slog.String("service", serviceName), slog.String("method", methodName))
 		return status.Error(codes.NotFound, "No stub configured")
@@ -246,7 +246,7 @@ func (s *GRPCService) ClientStreamHandler(_ any, stream grpc.ServerStream) error
 	// For client-side streaming, match using only the metadata headers since
 	// the body consists of multiple messages.
 	inv := buildInvocation(ctx, nil)
-	resp, ok := s.stubs.Find(serviceName, methodName, inv)
+	resp, ok := s.stubs.Get(serviceName, methodName, inv)
 	if !ok {
 		return status.Error(codes.NotFound, "no stub found")
 	}

@@ -163,98 +163,102 @@ func TestLoadJSONFile(t *testing.T) {
 }
 
 func TestHeaderMatcherValidateAndMatches(t *testing.T) {
-	cases := []struct {
-		name      string
+	t.Parallel()
+
+	cases := map[string]struct {
 		matcher   HeaderMatcher
 		value     string
 		wantMatch bool
-		wantErr   bool
+		wantErr   require.ErrorAssertionFunc
 	}{
-		{
-			name:      "exact match succeeds",
+		"exact match succeeds": {
 			matcher:   HeaderMatcher{Exact: "Bearer token123"},
 			value:     "Bearer token123",
 			wantMatch: true,
+			wantErr:   require.NoError,
 		},
-		{
-			name:      "exact match fails",
+		"exact match fails": {
 			matcher:   HeaderMatcher{Exact: "Bearer token123"},
 			value:     "Bearer other",
 			wantMatch: false,
+			wantErr:   require.NoError,
 		},
-		{
-			name:      "regex match succeeds",
+		"regex match succeeds": {
 			matcher:   HeaderMatcher{Regex: `^Bearer .+$`},
 			value:     "Bearer sometoken",
 			wantMatch: true,
+			wantErr:   require.NoError,
 		},
-		{
-			name:      "regex match fails",
+		"regex match fails": {
 			matcher:   HeaderMatcher{Regex: `^Bearer .+$`},
 			value:     "Basic user:pass",
 			wantMatch: false,
+			wantErr:   require.NoError,
 		},
-		{
-			name:    "both exact and regex is invalid",
+		"both exact and regex is invalid": {
 			matcher: HeaderMatcher{Exact: "x", Regex: "x"},
-			wantErr: true,
+			wantErr: require.Error,
 		},
-		{
-			name:    "neither exact nor regex is invalid",
+		"neither exact nor regex is invalid": {
 			matcher: HeaderMatcher{},
-			wantErr: true,
+			wantErr: require.Error,
 		},
-		{
-			name:    "invalid regex",
+		"invalid regex": {
 			matcher: HeaderMatcher{Regex: "[invalid"},
-			wantErr: true,
+			wantErr: require.Error,
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tc.matcher.validate()
-			if tc.wantErr {
-				require.Error(t, err)
-				return
+			tc.wantErr(t, err)
+			if err == nil {
+				require.Equal(t, tc.wantMatch, tc.matcher.matches(tc.value))
 			}
-			require.NoError(t, err)
-			require.Equal(t, tc.wantMatch, tc.matcher.matches(tc.value))
 		})
 	}
 }
 
 func TestBodyMatcherValidateAndMatches(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		matcher   BodyMatcher
 		body      map[string]any
 		wantMatch bool
-		wantErr   bool
+		wantErr   require.ErrorAssertionFunc
 	}{
 		{
 			name:      "exact match succeeds",
 			matcher:   BodyMatcher{Exact: map[string]any{"name": "John"}},
 			body:      map[string]any{"name": "John"},
 			wantMatch: true,
+			wantErr:   require.NoError,
 		},
 		{
 			name:      "exact match fails when extra fields present",
 			matcher:   BodyMatcher{Exact: map[string]any{"name": "John"}},
 			body:      map[string]any{"name": "John", "age": float64(30)},
 			wantMatch: false,
+			wantErr:   require.NoError,
 		},
 		{
 			name:      "contains match succeeds with extra fields",
 			matcher:   BodyMatcher{Contains: map[string]any{"name": "John"}},
 			body:      map[string]any{"name": "John", "age": float64(30)},
 			wantMatch: true,
+			wantErr:   require.NoError,
 		},
 		{
 			name:      "contains match fails when key missing",
 			matcher:   BodyMatcher{Contains: map[string]any{"name": "John"}},
 			body:      map[string]any{"age": float64(30)},
 			wantMatch: false,
+			wantErr:   require.NoError,
 		},
 		{
 			name: "contains match succeeds for nested map",
@@ -265,28 +269,29 @@ func TestBodyMatcherValidateAndMatches(t *testing.T) {
 				"user": map[string]any{"name": "John", "age": float64(30)},
 			},
 			wantMatch: true,
+			wantErr:   require.NoError,
 		},
 		{
 			name:    "both exact and contains is invalid",
 			matcher: BodyMatcher{Exact: map[string]any{"a": "b"}, Contains: map[string]any{"a": "b"}},
-			wantErr: true,
+			wantErr: require.Error,
 		},
 		{
 			name:    "neither exact nor contains is invalid",
 			matcher: BodyMatcher{},
-			wantErr: true,
+			wantErr: require.Error,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tc.matcher.validate()
-			if tc.wantErr {
-				require.Error(t, err)
-				return
+			tc.wantErr(t, err)
+			if err == nil {
+				require.Equal(t, tc.wantMatch, tc.matcher.matches(tc.body))
 			}
-			require.NoError(t, err)
-			require.Equal(t, tc.wantMatch, tc.matcher.matches(tc.body))
 		})
 	}
 }
@@ -380,14 +385,14 @@ func TestRequestMatcherMatches(t *testing.T) {
 }
 
 func TestJSONStubMatchesWithRequestMatcher(t *testing.T) {
-	cases := []struct {
-		name      string
+	t.Parallel()
+
+	cases := map[string]struct {
 		stub      JSONStub
 		inv       HTTPInvocation
 		wantMatch bool
 	}{
-		{
-			name: "header exact match selects stub",
+		"header exact match selects stub": {
 			stub: JSONStub{
 				ExactPath:  "/api",
 				HTTPMethod: "POST",
@@ -401,8 +406,7 @@ func TestJSONStubMatchesWithRequestMatcher(t *testing.T) {
 			inv:       HTTPInvocation{Method: "POST", Path: "/api", Headers: http.Header{"X-Token": []string{"secret"}}},
 			wantMatch: true,
 		},
-		{
-			name: "header mismatch rejects stub",
+		"header mismatch rejects stub": {
 			stub: JSONStub{
 				ExactPath:  "/api",
 				HTTPMethod: "POST",
@@ -416,8 +420,7 @@ func TestJSONStubMatchesWithRequestMatcher(t *testing.T) {
 			inv:       HTTPInvocation{Method: "POST", Path: "/api", Headers: http.Header{"X-Token": []string{"wrong"}}},
 			wantMatch: false,
 		},
-		{
-			name: "body contains match selects stub",
+		"body contains match selects stub": {
 			stub: JSONStub{
 				ExactPath:  "/submit",
 				HTTPMethod: "POST",
@@ -429,8 +432,7 @@ func TestJSONStubMatchesWithRequestMatcher(t *testing.T) {
 			inv:       HTTPInvocation{Method: "POST", Path: "/submit", Body: map[string]any{"action": "create", "name": "test"}},
 			wantMatch: true,
 		},
-		{
-			name: "stub without request matcher matches any request",
+		"stub without request matcher matches any request": {
 			stub: JSONStub{
 				ExactPath:  "/open",
 				HTTPMethod: "*",
@@ -441,8 +443,10 @@ func TestJSONStubMatchesWithRequestMatcher(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			stub := tc.stub
 			require.NoError(t, stub.Validate())
 			require.Equal(t, tc.wantMatch, stub.Matches(tc.inv))

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+
+	"github.com/randomenterprisesolutions/stub-server/internal/matchutil"
 )
 
 // HeaderMatcher matches a single request header value using exact string equality or a regex pattern.
@@ -36,7 +38,7 @@ func (m *HeaderMatcher) validate() error {
 	if m.Regex != "" {
 		compiled, err := regexp.Compile(m.Regex)
 		if err != nil {
-			return fmt.Errorf("invalid regex: %w", err)
+			return fmt.Errorf("compile regex: %w", err)
 		}
 		m.regex = compiled
 	}
@@ -54,7 +56,7 @@ func (m *BodyMatcher) matches(body map[string]any) bool {
 		return reflect.DeepEqual(body, m.Exact)
 	}
 	if m.Contains != nil {
-		return jsonContains(body, m.Contains)
+		return matchutil.MapContains(body, m.Contains)
 	}
 	return false
 }
@@ -106,26 +108,6 @@ func (m *RequestMatcher) validate() error {
 		}
 	}
 	return nil
-}
-
-// jsonContains reports whether full contains all key-value pairs from subset, recursively for nested maps.
-func jsonContains(full, subset map[string]any) bool {
-	for k, sv := range subset {
-		fv, ok := full[k]
-		if !ok {
-			return false
-		}
-		svMap, svIsMap := sv.(map[string]any)
-		fvMap, fvIsMap := fv.(map[string]any)
-		if svIsMap && fvIsMap {
-			if !jsonContains(fvMap, svMap) {
-				return false
-			}
-		} else if !reflect.DeepEqual(fv, sv) {
-			return false
-		}
-	}
-	return true
 }
 
 // JSONStub represents a predefined HTTP stub.
@@ -200,7 +182,7 @@ func (s *JSONStub) Validate() error {
 	if s.RegexPath != "" {
 		compiled, err := regexp.Compile(s.RegexPath)
 		if err != nil {
-			return fmt.Errorf("invalid regex: %w", err)
+			return fmt.Errorf("compile regex: %w", err)
 		}
 		s.regex = compiled
 	}

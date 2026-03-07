@@ -16,7 +16,7 @@ type GRPCInvocation struct {
 // Repository defines the interface for storing and retrieving gRPC stubs.
 type Repository interface {
 	Add(stub ProtoStub)
-	Find(service string, method string, inv GRPCInvocation) (Output, bool)
+	Get(service string, method string, inv GRPCInvocation) (Output, bool)
 }
 
 // Storage is an in-memory storage for gRPC stubs.
@@ -39,7 +39,7 @@ func NewStorage() *Storage {
 
 // Add adds a new ProtoStub to the storage.
 // Stubs with a request matcher are stored before stubs without one so that
-// more-specific stubs are checked first during Find.
+// more-specific stubs are checked first during Get.
 func (p *Storage) Add(s ProtoStub) {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -57,9 +57,9 @@ func (p *Storage) Add(s ProtoStub) {
 	p.stubs[s.Service][s.Method] = stubs
 }
 
-// Find retrieves the Output for the first stub matching the given service, method, and invocation.
+// Get retrieves the Output for the first stub matching the given service, method, and invocation.
 // Stubs without a request matcher act as a fallback and match any invocation.
-func (p *Storage) Find(service string, method string, inv GRPCInvocation) (Output, bool) {
+func (p *Storage) Get(service string, method string, inv GRPCInvocation) (Output, bool) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
