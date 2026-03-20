@@ -24,13 +24,19 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
+// Repository defines the interface for storing and retrieving gRPC stubs.
+type Repository interface {
+	Add(stub ProtoStub)
+	Get(service string, method string, inv GRPCInvocation) (Output, bool)
+}
+
 // GRPCService represents a gRPC service that can handle requests based on loaded stubs.
 type GRPCService struct {
-	stubs      Repository
-	sdMap      map[string]protoreflect.ServiceDescriptor
-	grpcServer *grpc.Server
-	files      *protoregistry.Files
-	types      *protoregistry.Types
+	stubs            Repository
+	sdMap            map[string]protoreflect.ServiceDescriptor
+	grpcServer       *grpc.Server
+	files            *protoregistry.Files
+	types            *protoregistry.Types
 	enableReflection bool
 }
 
@@ -59,11 +65,11 @@ func NewServerWithOptions(protoDir string, protoStubDir string, opts ServerOptio
 // gRPC server, and loads stub definitions from the specified stubDir into the provided Repository.
 func registerServices(srv *grpc.Server, protoDir string, stubDir string, r Repository, opts ServerOptions) error {
 	s := &GRPCService{
-		stubs:      r,
-		sdMap:      map[string]protoreflect.ServiceDescriptor{},
-		grpcServer: srv,
-		files:      &protoregistry.Files{},
-		types:      &protoregistry.Types{},
+		stubs:            r,
+		sdMap:            map[string]protoreflect.ServiceDescriptor{},
+		grpcServer:       srv,
+		files:            &protoregistry.Files{},
+		types:            &protoregistry.Types{},
 		enableReflection: opts.EnableReflection,
 	}
 

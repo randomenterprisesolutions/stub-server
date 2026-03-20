@@ -13,12 +13,6 @@ type GRPCInvocation struct {
 	Body map[string]any
 }
 
-// Repository defines the interface for storing and retrieving gRPC stubs.
-type Repository interface {
-	Add(stub ProtoStub)
-	Get(service string, method string, inv GRPCInvocation) (Output, bool)
-}
-
 // Storage is an in-memory storage for gRPC stubs.
 type Storage struct {
 	// represents [serviceName][methodName][]ProtoStub
