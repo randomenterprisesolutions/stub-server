@@ -8,7 +8,7 @@ Lightweight stub server for HTTP and gRPC on one port. Loads `.proto` files dire
 # Comparison
 | Tool | HTTP | gRPC | gRPC streaming | File-based stubs | Raw HTTP response files | Request matching | Admin API / UI | Verification |
 |-|-|-|-|-|-|-|-|-|
-| Stub Server (this) | Yes | Yes | Yes | Yes | Yes | Headers + JSON body | No | No |
+| Stub Server (this) | Yes | Yes | Yes | Yes | Yes | Yes | No | No |
 | WireMock | Yes | No | No | Yes | Limited | Yes | Yes | Yes |
 | MockServer | Yes | Partial (via gRPC proxying) | Limited | Yes | Limited | Yes | Yes | Yes |
 | Imposter (imposter.js) | Yes | Yes | Partial | Yes | Limited | Yes | Yes | Partial |
@@ -99,10 +99,10 @@ stubs/
 ```
 
 ### Request matching
-Request matching allows you to select a stub based on request headers or the request body.
+Request matching can be used to configure the behavior more granular.
 
 ##### Header matching
-You can match headers using exact string equality or a regex pattern.
+Header expectations can be defined using either exact string equality or a regex pattern.
 
 ```json
 {
@@ -119,7 +119,7 @@ You can match headers using exact string equality or a regex pattern.
 ```
 
 ##### Query parameter matching
-You can match query parameters using exact string equality or a regex pattern.
+Query parameter expectations can be defined using either exact string equality or a regex pattern.
 
 ```json
 {
@@ -136,10 +136,10 @@ You can match query parameters using exact string equality or a regex pattern.
 ```
 
 ##### Body matching
-For JSON requests, you can match the body using an `exact` map or a `contains` (subset) map.
+For JSON requests the body expectations can be defined by either using an `exact` or a `contains` (subset).
 
-- `exact`: The request body must be deeply equal to the provided map.
-- `contains`: The request body must contain all keys and values from the provided map (extra fields are ignored).
+- `exact`: The request body must be deeply equal to the provided JSON object.
+- `contains`: The request body must contain all keys and values from the provided JSON object (extra fields are ignored).
 
 ```json
 {
@@ -155,10 +155,6 @@ For JSON requests, you can match the body using an `exact` map or a `contains` (
     "response": {"status": 201}
 }
 ```
-
-### Non-goals
-- contract validation
-- expectation verification
 
 ## gRPC stub server
 
@@ -192,7 +188,7 @@ The gRPC stub requires the `service`, `method` and `output` fields. An optional 
 ```
 
 ### Request matching
-The optional `request` block supports the same `headers` and `body` matchers as the HTTP stubs. Multiple stubs for the same service and method are allowed; stubs with a `request` matcher are checked before stubs without one, which acts as a fallback.
+The optional `request` block supports the same `headers` and `body` matchers as the HTTP stubs. Multiple stubs for the same service and method are allowed and stubs with a `request` matcher take precedence.
 
 #### Header matching
 gRPC metadata keys are always lowercase. Each entry in `request.headers` accepts exactly one of `exact` or `regex`.
@@ -273,7 +269,7 @@ export STUB_SERVER_STUBS=/stubs/grpc
 
 
 # Docker images
-Linux images are published via GoReleaser at `ghcr.io/randomenterprisesolutions/stub-server/cmd`. A Windows Server 2022 (nanoserver) image is also published on tags with the suffix `windows-<tag>`. Tag releases are multi-arch manifests that include both Linux and Windows. The `latest` tag is maintained; no `stable` tag is published.
+Linux images are published via GoReleaser at `ghcr.io/randomenterprisesolutions/stub-server/cmd`. A Windows Server 2022 (nanoserver) image is also published on tags with the suffix `windows-<tag>`. Tag releases are multi-arch manifests that include both Linux and Windows.
 
 Examples:
 `ghcr.io/randomenterprisesolutions/stub-server/cmd:v0.6.0`
