@@ -21,7 +21,7 @@ var _ Stub = &HTTPStub{}
 
 // Matches checks if the HTTPStub matches the given HTTP request.
 func (s *HTTPStub) Matches(inv HTTPInvocation) bool {
-	return inv.Path == s.Path && (s.HTTPMethod == "*" || inv.Method == s.HTTPMethod)
+	return inv.Path == s.Path && (s.HTTPMethod == "*" || inv.Method == s.HTTPMethod) && len(inv.Query) == 0
 }
 
 // Type returns the MatchType

@@ -99,25 +99,12 @@ stubs/
 ```
 
 ### Request matching
-Stubs can optionally specify a `request` block to narrow matching beyond path and method. When multiple stubs share the same path and method, stubs with a `request` matcher are checked before stubs without one.
+Request matching allows you to select a stub based on request headers or the request body.
 
-#### Matching fields
-| Field | Type | Description |
-|-|-|-|
-| `request.headers` | object | Map of header name to a `HeaderMatcher`. |
-| `request.body` | object | A `BodyMatcher` for the JSON request body. |
+##### Header matching
+You can match headers using exact string equality or a regex pattern.
 
-#### Header matching
-Each entry in `request.headers` is a `HeaderMatcher` with exactly one of:
-
-| Field | Description |
-|-|-|
-| `exact` | The header value must equal this string exactly. |
-| `regex` | The header value must match this Go regular expression. |
-
-Header names are matched case-insensitively (Go's `http.Header.Get` canonicalization applies).
-
-```JSON
+```json
 {
     "path": "/secure",
     "method": "POST",
@@ -127,69 +114,45 @@ Header names are matched case-insensitively (Go's `http.Header.Get` canonicaliza
             "Content-Type":  {"regex": "^application/.*"}
         }
     },
-    "response": {
-        "status": 200,
-        "body": {"ok": true}
-    }
+    "response": {"status": 200}
 }
 ```
 
-#### JSON body matching
-`request.body` is a `BodyMatcher` with exactly one of:
+##### Query parameter matching
+You can match query parameters using exact string equality or a regex pattern.
 
-| Field | Description |
-|-|-|
-| `exact` | The parsed JSON request body must be deeply equal to this object. |
-| `contains` | The parsed JSON request body must contain all key-value pairs in this object (recursively for nested maps). |
-
-The request body must be valid JSON for body matching to work. Non-JSON bodies (e.g. form data, binary) will not match a body matcher.
-
-```JSON
+```json
 {
-    "path": "/orders",
+    "path": "/search",
+    "method": "GET",
+    "request": {
+        "query": {
+            "q": {"exact": "stub-server"},
+            "id": {"regex": "[0-9]+"}
+        }
+    },
+    "response": {"status": 200}
+}
+```
+
+##### Body matching
+For JSON requests, you can match the body using an `exact` map or a `contains` (subset) map.
+
+- `exact`: The request body must be deeply equal to the provided map.
+- `contains`: The request body must contain all keys and values from the provided map (extra fields are ignored).
+
+```json
+{
+    "path": "/users",
     "method": "POST",
     "request": {
         "body": {
-            "contains": {"status": "pending"}
+            "contains": {
+                "name": "John Doe"
+            }
         }
     },
-    "response": {
-        "status": 202
-    }
-}
-```
-
-#### Combined header and body matching example
-```JSON
-{
-    "path": "/api/v1/users",
-    "method": "POST",
-    "request": {
-        "headers": {
-            "X-Api-Key": {"exact": "secret-key"}
-        },
-        "body": {
-            "contains": {"role": "admin"}
-        }
-    },
-    "response": {
-        "status": 201,
-        "body": {"created": true}
-    }
-}
-```
-
-#### Fallback stub (no request matcher)
-A stub without a `request` block acts as a fallback and matches any request that reaches it (after all stubs with request matchers have been checked):
-
-```JSON
-{
-    "path": "/api/v1/users",
-    "method": "POST",
-    "response": {
-        "status": 400,
-        "body": {"error": "unauthorized"}
-    }
+    "response": {"status": 201}
 }
 ```
 

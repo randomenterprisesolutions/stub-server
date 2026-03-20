@@ -3,6 +3,7 @@ package httpstub
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -359,6 +360,48 @@ func TestRequestMatcherMatches(t *testing.T) {
 			inv:       HTTPInvocation{Body: map[string]any{"key": "value", "extra": "data"}},
 			wantMatch: true,
 		},
+		"query exact match succeeds": {
+			matcher: RequestMatcher{
+				Query: map[string]QueryMatcher{
+					"param": {Exact: "value"},
+				},
+			},
+			inv: HTTPInvocation{
+				Query: url.Values{"param": []string{"value"}},
+			},
+			wantMatch: true,
+		},
+		"query exact match fails": {
+			matcher: RequestMatcher{
+				Query: map[string]QueryMatcher{
+					"param": {Exact: "value"},
+				},
+			},
+			inv: HTTPInvocation{
+				Query: url.Values{"param": []string{"wrong"}},
+			},
+			wantMatch: false,
+		},
+		"query regex match succeeds": {
+			matcher: RequestMatcher{
+				Query: map[string]QueryMatcher{
+					"id": {Regex: `\d+`},
+				},
+			},
+			inv: HTTPInvocation{
+				Query: url.Values{"id": []string{"123"}},
+			},
+			wantMatch: true,
+		},
+		"missing query fails match": {
+			matcher: RequestMatcher{
+				Query: map[string]QueryMatcher{
+					"param": {Exact: "value"},
+				},
+			},
+			inv:       HTTPInvocation{Query: url.Values{}},
+			wantMatch: false,
+		},
 	}
 
 	for name, tc := range cases {
@@ -420,6 +463,30 @@ func TestJSONStubMatchesWithRequestMatcher(t *testing.T) {
 			inv:       HTTPInvocation{Method: "POST", Path: "/submit", Body: map[string]any{"action": "create", "name": "test"}},
 			wantMatch: true,
 		},
+		"query match selects stub": {
+			stub: JSONStub{
+				ExactPath:  "/search",
+				HTTPMethod: "GET",
+				Request: &RequestMatcher{
+					Query: map[string]QueryMatcher{"q": {Exact: "test"}},
+				},
+				Response: JSONResponse{Status: http.StatusOK},
+			},
+			inv:       HTTPInvocation{Method: "GET", Path: "/search", Query: url.Values{"q": []string{"test"}}},
+			wantMatch: true,
+		},
+		"query mismatch rejects stub": {
+			stub: JSONStub{
+				ExactPath:  "/search",
+				HTTPMethod: "GET",
+				Request: &RequestMatcher{
+					Query: map[string]QueryMatcher{"q": {Exact: "test"}},
+				},
+				Response: JSONResponse{Status: http.StatusOK},
+			},
+			inv:       HTTPInvocation{Method: "GET", Path: "/search", Query: url.Values{"q": []string{"wrong"}}},
+			wantMatch: false,
+		},
 		"stub without request matcher matches any request": {
 			stub: JSONStub{
 				ExactPath:  "/open",
@@ -474,4 +541,64 @@ func TestHandlerRequestMatching(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 	handler.ServeHTTP(rec2, req2)
 	require.Equal(t, http.StatusNotFound, rec2.Code)
+}
+
+func TestQueryMatcherValidateAndMatches(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		matcher   QueryMatcher
+		value     string
+		wantMatch bool
+		wantErr   require.ErrorAssertionFunc
+	}{
+		"exact match succeeds": {
+			matcher:   QueryMatcher{Exact: "value1"},
+			value:     "value1",
+			wantMatch: true,
+			wantErr:   require.NoError,
+		},
+		"exact match fails": {
+			matcher:   QueryMatcher{Exact: "value1"},
+			value:     "value2",
+			wantMatch: false,
+			wantErr:   require.NoError,
+		},
+		"regex match succeeds": {
+			matcher:   QueryMatcher{Regex: `^val.+$`},
+			value:     "value123",
+			wantMatch: true,
+			wantErr:   require.NoError,
+		},
+		"regex match fails": {
+			matcher:   QueryMatcher{Regex: `^val.+$`},
+			value:     "other",
+			wantMatch: false,
+			wantErr:   require.NoError,
+		},
+		"both exact and regex is invalid": {
+			matcher: QueryMatcher{Exact: "x", Regex: "x"},
+			wantErr: require.Error,
+		},
+		"neither exact nor regex is invalid": {
+			matcher: QueryMatcher{},
+			wantErr: require.Error,
+		},
+		"invalid regex": {
+			matcher: QueryMatcher{Regex: "[invalid"},
+			wantErr: require.Error,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.matcher.validate()
+			tc.wantErr(t, err)
+			if err == nil {
+				require.Equal(t, tc.wantMatch, tc.matcher.matches(tc.value))
+			}
+		})
+	}
 }

@@ -71,15 +71,55 @@ func (m *BodyMatcher) validate() error {
 	return nil
 }
 
+// QueryMatcher matches a single request query parameter value using exact string equality or a regex pattern.
+type QueryMatcher struct {
+	Exact string `json:"exact"`
+	Regex string `json:"regex"`
+	regex *regexp.Regexp
+}
+
+func (m *QueryMatcher) matches(value string) bool {
+	if m.Exact != "" {
+		return value == m.Exact
+	}
+	if m.regex != nil {
+		return m.regex.MatchString(value)
+	}
+	return false
+}
+
+func (m *QueryMatcher) validate() error {
+	if m.Exact != "" && m.Regex != "" {
+		return errors.New(`only one of "exact" or "regex" can be set`)
+	}
+	if m.Exact == "" && m.Regex == "" {
+		return errors.New(`one of "exact" or "regex" is required`)
+	}
+	if m.Regex != "" {
+		compiled, err := regexp.Compile(m.Regex)
+		if err != nil {
+			return fmt.Errorf("compile regex: %w", err)
+		}
+		m.regex = compiled
+	}
+	return nil
+}
+
 // RequestMatcher holds matchers for HTTP request attributes used to select a stub.
 type RequestMatcher struct {
 	Headers map[string]HeaderMatcher `json:"headers"`
+	Query   map[string]QueryMatcher  `json:"query"`
 	Body    *BodyMatcher             `json:"body"`
 }
 
 func (m *RequestMatcher) matches(inv HTTPInvocation) bool {
 	for name, matcher := range m.Headers {
 		if !matcher.matches(inv.Headers.Get(name)) {
+			return false
+		}
+	}
+	for name, matcher := range m.Query {
+		if !matcher.matches(inv.Query.Get(name)) {
 			return false
 		}
 	}
@@ -101,6 +141,13 @@ func (m *RequestMatcher) validate() error {
 		}
 		// Reassign to preserve the compiled regex stored during validate().
 		m.Headers[name] = matcher
+	}
+	for name, matcher := range m.Query {
+		if err := matcher.validate(); err != nil {
+			return fmt.Errorf("query %q: %w", name, err)
+		}
+		// Reassign to preserve the compiled regex stored during validate().
+		m.Query[name] = matcher
 	}
 	if m.Body != nil {
 		if err := m.Body.validate(); err != nil {

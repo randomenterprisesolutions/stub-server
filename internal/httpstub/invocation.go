@@ -5,7 +5,7 @@ import (
 	"net/url"
 )
 
-// HTTPInvocation captures request identity for matching.
+// HTTPInvocation holds information about an HTTP request for stub matching.
 type HTTPInvocation struct {
 	Method  string
 	Path    string
