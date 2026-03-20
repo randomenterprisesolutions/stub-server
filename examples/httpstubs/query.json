@@ -1,0 +1,16 @@
+{
+    "path": "/search",
+    "method": "GET",
+    "request": {
+        "query": {
+            "q": {"exact": "stub-server"},
+            "id": {"regex": "[0-9]+"}
+        }
+    },
+    "response": {
+        "status": 200,
+        "body": {
+            "message": "Query match successful!"
+        }
+    }
+}

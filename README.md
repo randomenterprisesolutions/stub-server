@@ -6,9 +6,9 @@ Lightweight stub server for HTTP and gRPC on one port. Loads `.proto` files dire
 - Not a full contract testing/verification tool.
 
 # Comparison
-| Tool | HTTP | gRPC | gRPC streaming | File-based stubs | Raw HTTP response files | Request body matching | Admin API / UI | Verification |
+| Tool | HTTP | gRPC | gRPC streaming | File-based stubs | Raw HTTP response files | Request matching | Admin API / UI | Verification |
 |-|-|-|-|-|-|-|-|-|
-| Stub Server (this) | Yes | Yes | Yes | Yes | Yes | No | No | No |
+| Stub Server (this) | Yes | Yes | Yes | Yes | Yes | Yes | No | No |
 | WireMock | Yes | No | No | Yes | Limited | Yes | Yes | Yes |
 | MockServer | Yes | Partial (via gRPC proxying) | Limited | Yes | Limited | Yes | Yes | Yes |
 | Imposter (imposter.js) | Yes | Yes | Partial | Yes | Limited | Yes | Yes | Partial |
@@ -42,7 +42,7 @@ The HTTP stub server supports two stub types:
 ### Stub formats
 | Format | When to use | Notes |
 |-|-|-|
-| JSON | Most HTTP responses with structured bodies | Supports exact or regex path matching, plus headers/status/body. |
+| JSON | Most HTTP responses with structured bodies | Supports exact or regex path matching, plus request header/body matching and headers/status/body in the response. |
 | Raw HTTP | Multipart/binary or highly custom responses | Full control over headers/body as a raw HTTP response. |
 
 ### JSON
@@ -99,20 +99,66 @@ stubs/
 ```
 
 ### Request matching
-Matching is based on:
-- method (use `method: "*"` to match any HTTP method)
-- path (exact or regex)
+Request matching can be used to configure the behavior more granular.
 
-Query parameters and headers are not currently used for matching.
+##### Header matching
+Header expectations can be defined using either exact string equality or a regex pattern.
 
-### Non-goals
-- request body matching
-- contract validation
-- expectation verification
+```json
+{
+    "path": "/secure",
+    "method": "POST",
+    "request": {
+        "headers": {
+            "Authorization": {"exact": "Bearer my-token"},
+            "Content-Type":  {"regex": "^application/.*"}
+        }
+    },
+    "response": {"status": 200}
+}
+```
+
+##### Query parameter matching
+Query parameter expectations can be defined using either exact string equality or a regex pattern.
+
+```json
+{
+    "path": "/search",
+    "method": "GET",
+    "request": {
+        "query": {
+            "q": {"exact": "stub-server"},
+            "id": {"regex": "[0-9]+"}
+        }
+    },
+    "response": {"status": 200}
+}
+```
+
+##### Body matching
+For JSON requests the body expectations can be defined by either using an `exact` or a `contains` (subset).
+
+- `exact`: The request body must be deeply equal to the provided JSON object.
+- `contains`: The request body must contain all keys and values from the provided JSON object (extra fields are ignored).
+
+```json
+{
+    "path": "/users",
+    "method": "POST",
+    "request": {
+        "body": {
+            "contains": {
+                "name": "John Doe"
+            }
+        }
+    },
+    "response": {"status": 201}
+}
+```
 
 ## gRPC stub server
 
-The gRPC stub requires the `service`, `method` and `outputs` fields.
+The gRPC stub requires the `service`, `method` and `output` fields. An optional `request` block enables matching on incoming metadata (headers) and the decoded request message body.
 
 ### Unary success example
 ```JSON
@@ -137,6 +183,56 @@ The gRPC stub requires the `service`, `method` and `outputs` fields.
             "code": 3,
             "message": "Invalid request"
         }
+    }
+}
+```
+
+### Request matching
+The optional `request` block supports the same `headers` and `body` matchers as the HTTP stubs. Multiple stubs for the same service and method are allowed and stubs with a `request` matcher take precedence.
+
+#### Header matching
+gRPC metadata keys are always lowercase. Each entry in `request.headers` accepts exactly one of `exact` or `regex`.
+
+```JSON
+{
+    "service": "helloworld.Greeter",
+    "method": "SayHello",
+    "request": {
+        "headers": {
+            "authorization": {"exact": "Bearer my-token"}
+        }
+    },
+    "output": {
+        "data": {"message": "Hello, authenticated user"}
+    }
+}
+```
+
+#### JSON body matching
+The request body is the protobuf message decoded to JSON using the standard proto3 JSON mapping (field names are camelCase; `int64` values are represented as strings). Provide an `exact` or `contains` matcher:
+
+```JSON
+{
+    "service": "helloworld.Greeter",
+    "method": "SayHello",
+    "request": {
+        "body": {
+            "contains": {"name": "World"}
+        }
+    },
+    "output": {
+        "data": {"message": "Hello, World"}
+    }
+}
+```
+
+#### Fallback stub (no request matcher)
+```JSON
+{
+    "service": "helloworld.Greeter",
+    "method": "SayHello",
+    "output": {
+        "data": {"message": "Hello, unknown caller"}
     }
 }
 ```
@@ -173,7 +269,7 @@ export STUB_SERVER_STUBS=/stubs/grpc
 
 
 # Docker images
-Linux images are published via GoReleaser at `ghcr.io/randomenterprisesolutions/stub-server/cmd`. A Windows Server 2022 (nanoserver) image is also published on tags with the suffix `windows-<tag>`. Tag releases are multi-arch manifests that include both Linux and Windows. The `latest` tag is maintained; no `stable` tag is published.
+Linux images are published via GoReleaser at `ghcr.io/randomenterprisesolutions/stub-server/cmd`. A Windows Server 2022 (nanoserver) image is also published on tags with the suffix `windows-<tag>`. Tag releases are multi-arch manifests that include both Linux and Windows.
 
 Examples:
 `ghcr.io/randomenterprisesolutions/stub-server/cmd:v0.6.0`
